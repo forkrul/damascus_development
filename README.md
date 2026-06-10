@@ -1,6 +1,6 @@
 # Damascus
 
-**Structured Prompt-Driven Development for Claude Code.** A raw idea enters; folded, hardened, tested steel leaves. Damascus packages the SPDD pipeline — four gated stages plus an orchestrator — as skills you symlink into any repo.
+**Structured Prompt-Driven Development, or BDD/TDD carnival, or Spec-it-to-death.** A raw idea enters; folded, hardened, tested steel leaves. Damascus packages the SPDD pipeline — four gated stages plus an orchestrator — as skills you symlink into any repo.
 
 ![The Damascus pipeline](docs/assets/hero.png)
 
