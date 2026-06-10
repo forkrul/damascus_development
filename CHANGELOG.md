@@ -15,3 +15,7 @@ All notable changes to this project are documented here, following [Common Chang
 ### Changed
 
 - Replace the external-API review gate in `temper` with a fully local adversarial panel (3 critic lenses + judge; A++ = two consecutive zero-blocking rounds, max 5 rounds)
+
+### Fixed
+
+- Make the README hero image background transparent (renders cleanly on dark and light themes)
