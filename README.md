@@ -32,14 +32,22 @@ Every stage halts at its gate for user signoff. State lives in the disk artifact
 
 Temper needs **no external API**. Each round, three critic subagents with distinct lenses (completeness, feasibility, testability) try to *refute* the spec triplet; a judge dedupes findings and assigns a rating. Blocking findings are applied, the round is logged, and the loop repeats. **A++ requires two consecutive rounds with zero blocking findings** (max 5 rounds, then escalate). The full trail lives in `specs/NNN-<slug>/review.md`, append-only.
 
+## Requirements
+
+- git ≥ 2.13 (submodules)
+- bash 3.2+ (`install.sh` runs on stock macOS bash)
+- a filesystem with symlink support
+
 ## Install
 
-From your repo root:
+From your repo root, pinning a release tag:
 
 ```bash
 git submodule add <this-repo-url> vendor/damascus
+git -C vendor/damascus checkout v0.1.0        # pin a release, not a moving branch
 git submodule update --init --recursive
 ./vendor/damascus/install.sh
+git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.0"
 ```
 
 This symlinks into your `.claude/`:
@@ -48,7 +56,27 @@ This symlinks into your `.claude/`:
 - 5 quench agents (`bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`) → `.claude/agents/`
 - the KEEP-class [obra/superpowers](https://github.com/obra/superpowers) skills (see policy below) → `.claude/skills/`
 
-Re-run any time to refresh; `./vendor/damascus/install.sh --uninstall` removes everything it owns and nothing else.
+Re-run any time to refresh; the install prunes damascus-owned links whose names are no longer shipped. Other modes:
+
+```bash
+./vendor/damascus/install.sh --verify      # link health report; exit 1 if repair is needed
+./vendor/damascus/install.sh --dry-run     # print planned actions, touch nothing
+./vendor/damascus/install.sh --uninstall   # removes everything it owns and nothing else
+```
+
+`--verify` output is the first thing to include in a bug report.
+
+## Upgrading
+
+```bash
+git -C vendor/damascus fetch --tags
+git -C vendor/damascus checkout v0.2.0     # the new release
+git submodule update --init --recursive
+./vendor/damascus/install.sh               # idempotent: refreshes and prunes
+git add vendor/damascus && git commit -m "chore: bump damascus to v0.2.0"
+```
+
+Breaking changes to skill contracts or `install.sh` behavior are called out in [CHANGELOG.md](CHANGELOG.md) and, past 1.0, bump the major version.
 
 ## Vendored Submodules
 
@@ -89,6 +117,12 @@ The skills degrade gracefully — each of these is used when present and skipped
 - **Board projection** — if your repo has a kanban/state sync script, each stage gate runs it once
 - **Phase signalling** — if your repo has a status-bar helper (e.g. tmux), quench calls it at red/amber/green transitions
 - **Drift detection** — if a pre-commit hook flags code changes without spec changes, smithy halts on it
+
+## Support & license
+
+Maintained by one person; issues are welcome and responses are best-effort. Please include your OS, `bash --version`, and `install.sh --verify` output when reporting installer problems.
+
+MIT licensed (see [LICENSE](LICENSE)). The vendored submodules `vendor/superpowers` and `vendor/spec-kit` retain their own upstream licenses and are not relicensed by this repo.
 
 ## Credits
 
