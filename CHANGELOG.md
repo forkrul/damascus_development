@@ -11,6 +11,7 @@ All notable changes to this project are documented here, following [Common Chang
 - Add the five quench dispatch agents: `bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`
 - Add `install.sh` for symlinking skills and agents into a consumer repo's `.claude/`
 - Vendor [obra/superpowers](https://github.com/obra/superpowers) v4.3.1 and [github/spec-kit](https://github.com/github/spec-kit) v0.10.1 as pinned submodules
+- Add `docs/production-readiness.md` — phased single-founder plan (licensing, CI, releases, installer hardening, automated maintenance)
 
 ### Changed
 
