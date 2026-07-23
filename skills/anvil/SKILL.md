@@ -1,6 +1,6 @@
 ---
 name: anvil
-description: Use after a PRD exists and before any code. Hammers a PRD into a structured spec/plan/tasks triplet, using GitHub spec-kit slash commands when available, or the vendored spec-kit templates as fallback. Stage 2 of the SPDD pipeline (forge → anvil → temper → quench, orchestrated by smithy).
+description: Use after a PRD exists and before any code. Hammers a PRD into a structured spec/plan/tasks triplet, using GitHub spec-kit slash commands when available, or the vendored spec-kit templates as fallback. Stage 2 of the SPDD pipeline (forge → anvil → temper → quench → hone, orchestrated by smithy).
 effort: medium
 ---
 
@@ -49,7 +49,9 @@ A directory `specs/NNN-<feature-slug>/` containing:
 
 - `spec.md` — user stories, functional requirements (`FR-NNN`), success criteria (`SC-NNN`), assumptions, dependencies
 - `plan.md` — REASONS-Canvas-structured: one section per REASONS letter, plus a "Phases" section that lists ordered phases of work
-- `tasks.md` — task list with format `[ID] [P?] [Story] Description` (P = parallel-safe, Story = which user story it belongs to). Each task has: file paths to touch, FR(s) it satisfies, gate criteria.
+- `tasks.md` — task list with format `[ID] [P?] [Story] [Tag?] Description` (P = parallel-safe, Story = which user story it belongs to; optional tags: `[UX]` browser-facing → Playwright in quench, `[REFACTOR]` changes existing behavior → characterization tests first, `[HARD]` genuinely tricky → quench's sample-and-select). Each task has: file paths to touch, FR(s) it satisfies, gate criteria.
+
+**Task sizing budget:** cut every task so its implementation diff stays under **~400 changed lines** — the largest unit `hone`'s reviewers (or any reviewer) can inspect reliably. A task you can't describe in one sentence, or that touches more than a handful of files, gets split. Quench logs actual diff sizes per task; oversized tasks come back as anvil feedback.
 
 NNN is the next available sequence number under `specs/`.
 
@@ -98,7 +100,7 @@ If `vendor/spec-kit/` is empty, the submodule is not initialized — run `git su
 
 - `spec.md`: keep user stories, `FR-NNN` functional requirements, `SC-NNN` success criteria. Every FR must trace to a user story; every SC must name how it is verified.
 - `plan.md`: replace the template's technical-context body with the 7-section REASONS Canvas (Requirements, Entities, Approach, Structure, Operations, Norms, Safeguards) followed by ordered Phases.
-- `tasks.md`: keep spec-kit's `T001`-style IDs and `[P]` parallel markers; add `[Story]` linkage and a `Satisfies: FR-NNN` + `Gate:` line per task.
+- `tasks.md`: keep spec-kit's `T001`-style IDs and `[P]` parallel markers; add `[Story]` linkage, the optional `[UX]`/`[REFACTOR]`/`[HARD]` tags, and a `Satisfies: FR-NNN` + `Gate:` line per task.
 
 ## Refusal Behavior
 
@@ -123,6 +125,7 @@ Anvil is **complete** when:
 - [ ] `spec.md`, `plan.md`, `tasks.md` all exist under `specs/NNN-<slug>/`
 - [ ] Each FR in spec.md maps to at least one task in tasks.md
 - [ ] Each task in tasks.md has explicit file paths and satisfies-FR linkage
+- [ ] Tasks are sized for a ≤400-changed-line diff; behavior-changing tasks tagged `[REFACTOR]`, genuinely tricky ones `[HARD]`
 - [ ] plan.md REASONS Canvas is complete (all 7 sections non-empty)
 - [ ] All artifacts are committed (or at least staged)
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.

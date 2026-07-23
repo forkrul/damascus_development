@@ -28,6 +28,7 @@ Feature: High-level feature description
     Given common setup that applies to all scenarios
     And additional context
 
+  @FR-001 @US-1
   Scenario: Clear scenario name describing specific behavior
     Given initial state or context
     And additional preconditions
@@ -277,6 +278,9 @@ Before finishing:
 - [ ] Error conditions are covered
 - [ ] Edge cases are considered
 - [ ] Scenarios are testable (not vague)
+- [ ] Every scenario is tagged with the user story and FR ids it verifies
+      (`@US-N @FR-NNN`) — quench's traceability gate greps these to prove every
+      FR has a verifying test
 - [ ] File follows project conventions
 
 Write scenarios that define clear acceptance criteria and enable confident test-driven development.

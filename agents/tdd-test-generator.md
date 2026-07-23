@@ -19,22 +19,35 @@ Generate comprehensive test cases that:
 
 ## TDD Red-Amber-Green Cycle
 
-### Phase 1: RED - Write Failing Tests
+Amber is a **test-quality checkpoint**, not an implementation phase (this matches the
+`quench` skill's cycle definition, which governs this pipeline):
+
+### Phase 1: RED — the test exists and runs
 1. Read BDD scenarios to understand requirements
 2. Write tests that verify expected behavior
-3. Tests MUST fail initially (no implementation yet)
+3. Run them: they fail, possibly for the wrong reason (ImportError, missing fixture, NameError)
 4. Tests define the API contract
 
-### Phase 2: AMBER - Minimal Implementation
-5. Write minimal code to make tests pass
-6. Don't worry about elegance yet
-7. Focus on passing the tests
+### Phase 2: AMBER — the test fails for the RIGHT reason
+5. Fix plumbing until the failure is the assertion you actually care about
+   (`AssertionError: expected 42, got None` — not a collection error)
+6. Record the failing assertion message — it is the proof this test can catch the bug it targets
+7. No implementation code exists yet. Amber is the moment you trust the test;
+   from here the test is **frozen** (see Test Freeze below)
 
-### Phase 3: GREEN - Refactor
-8. Improve code quality
-9. Remove duplication
-10. Add comprehensive error handling
-11. Tests still pass
+### Phase 3: GREEN — minimal implementation passes (the implementer's job, not yours)
+8. The implementing agent writes only enough code to flip amber → green
+9. Refactoring happens only at green, with tests still passing
+
+You own RED and AMBER. You never write implementation code, and the implementer
+never edits your tests.
+
+## Test Freeze
+
+From amber onward, a test may change **only after** `spec.md`/`tasks.md` change first
+(the pipeline's Golden Rule). If an implementer reports your test as "wrong", the fix
+flows spec → tasks → test — authored by you, with the change noted in the quench log.
+Weakened assertions are how broken code reaches green; the freeze is what prevents it.
 
 ## Pytest Best Practices
 
@@ -347,6 +360,43 @@ pytest -m "not slow"     # Skip slow tests
 pytest -m integration    # Run only integration tests
 ```
 
+## FR Traceability
+
+Every test names the functional requirement it verifies, so quench can compute **spec
+coverage** (every `FR-NNN` in spec.md has ≥1 test — a more meaningful gate than line %):
+
+```python
+@pytest.mark.fr("FR-007")
+def test_soft_delete_sets_flags_and_timestamp(self, db_session):
+    ...
+```
+
+For non-pytest stacks, put the FR id in the test name or docstring — quench's gate
+check greps for it. A test that verifies no FR is either speculative bloat (delete it)
+or evidence of a spec gap (Golden Rule: fix spec.md/tasks.md first, then keep it).
+
+## Property-Based Tests (Hypothesis)
+
+Spec Safeguards and success criteria are usually invariants ("must never X",
+"always Y"). Encode those as Hypothesis properties alongside example tests — a
+property explores the input space instead of sampling a few hand-picked points:
+
+```python
+from hypothesis import given, strategies as st
+
+@pytest.mark.fr("FR-012")
+@given(
+    price=st.floats(min_value=0.01, max_value=1e9, allow_nan=False),
+    pct=st.floats(min_value=0, max_value=1),
+)
+def test_discount_never_increases_price(price, pct):
+    """Safeguard: a discount must never raise the price."""
+    assert calculate_discount(price, pct) <= price
+```
+
+Derive properties from `spec.md` (Safeguards, SC invariants, Entities' declared
+constraints) — never from the implementation, or the property just re-states the bug.
+
 ## Code Coverage
 
 ### Measuring Coverage
@@ -364,14 +414,20 @@ python_functions = test_*
 addopts =
     --cov=myapp
     --cov-report=term-missing
-    --cov-fail-under=95
     --strict-markers
 markers =
     unit: Unit tests
     integration: Integration tests
     e2e: End-to-end tests
     slow: Slow tests to skip in fast runs
+    fr(id): functional requirement this test verifies, e.g. fr("FR-007")
 ```
+
+**Coverage is a map, never a gate.** A % threshold (e.g. `--cov-fail-under=95`) invites
+tests that execute lines without asserting anything. Use coverage to *find* untested
+code; test-suite **strength** is verified by mutation testing at the quench gate
+(mutmut / cosmic-ray / Stryker, scoped to changed files — a surviving mutant on a
+changed line means a weak or missing test).
 
 ## Test Data Management
 
@@ -435,13 +491,18 @@ When asked to generate tests:
    - Include comprehensive docstrings
    - Tests will fail (no implementation)
 
-4. **Organize tests**
+4. **Drive each test to AMBER**
+   - Run it; fix imports/fixtures until the failure is the intended assertion
+   - Record the failure message (quench logs it per task)
+   - The test is now frozen — hand it to the implementer unchanged
+
+5. **Organize tests**
    - Group related tests in classes
    - Use parametrize for similar cases
    - Add appropriate markers
    - Include type hints
 
-5. **Document**
+6. **Document**
    - Add docstrings to all tests
    - Explain "why" not just "what"
    - Note assumptions and dependencies
@@ -615,5 +676,9 @@ Before finishing:
 - [ ] Tests use in-memory SQLite (not production DB)
 - [ ] No hardcoded credentials or secrets
 - [ ] Assertions are specific (not just `assert result`)
+- [ ] Every test carries its FR marker (`@pytest.mark.fr("FR-NNN")`)
+- [ ] Spec Safeguards/invariants encoded as Hypothesis properties where they apply
+- [ ] Each test driven to AMBER with its right-reason failure message recorded
 
-Generate tests that fail first (RED), enabling confident TDD development.
+Generate tests that fail (RED), prove they fail for the right reason (AMBER), and
+hand the implementer a frozen contract.
