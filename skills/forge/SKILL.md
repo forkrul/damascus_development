@@ -139,7 +139,6 @@ Copy this into the new PRD file and elicit answers from the user section by sect
 - **Don't write FRs, SCs, or tasks here.** Those belong to `anvil`. Forge produces a PRD, full stop. If you find yourself writing FR-001, you have crossed a stage boundary.
 - **Don't merge multiple ideas into one PRD.** One feature = one PRD. If the user mixes "and also we should…", create a second PRD.
 - **Don't proceed to anvil without explicit user confirmation.** Forge halts; the user starts anvil.
-- **Don't invoke `superpowers:brainstorming`.** It is DENY-listed. Use forge's REASONS Canvas elicitation instead.
 
 ## Gate to Next Stage
 

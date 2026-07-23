@@ -143,8 +143,6 @@ Don't dispatch agents you don't have a task for.
 - **Don't write implementation code without a failing test in front of you.** No exceptions. If you find yourself about to "just add this small thing", stop and write the test first.
 - **Don't dispatch all the agents at once.** Quench is sequential per task, not parallel. Parallel agent dispatch is for `dispatching-parallel-agents` (an upstream skill), not quench.
 - **Don't mark a task complete until BDD + unit tests + (Playwright, if UX) all pass.** Partial green is not green.
-- **Don't invoke `superpowers:executing-plans`.** It is DENY-listed. Use quench's BDD-first / red-amber-green discipline.
-- **Don't silently downgrade red-amber-green to red-green.** If you find yourself doing it, you've slipped into upstream `test-driven-development` mode. Re-read this skill's Cycle table.
 - **Don't edit a test after amber without a spec/tasks change first.** Weakened assertions are how broken code reaches green. The freeze is the contract; exceptions go through the Golden Rule and into the quench log.
 - **Don't gate on coverage %.** Report it in the log; gate on mutation survivors and FR ↔ test traceability instead.
 - **Don't rerun a flaky test until it passes.** A flake is red. Fix the root cause or the task isn't done.

@@ -135,13 +135,11 @@ Return:
 | **A+** | Tight; SCs measurable; assumptions explicit |
 | **A++** | Reader implementing this would not need to ask the author a question |
 
-## Convergence Rule
+## Convergence Rule and Cap
 
 **A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean round earns at most A+ — the second consecutive clean round confirms the first wasn't luck and upgrades to A++. This is loop-until-dry, not loop-until-lucky.
 
 The overlap signal feeds this rule: a round capped at B+ for low overlap can never count as clean — when the critics' finding sets are near-disjoint, the pool of undiscovered defects is larger than the pool they surfaced, whatever the blocking count says.
-
-## Iteration Cap
 
 **Maximum 5 rounds**, then escalate to the user with the stuck findings. If 5 rounds fail to converge, the bottleneck is usually upstream — return to `anvil` (or even `forge`) to fix the underlying ambiguity. **Don't grind temper indefinitely.**
 
@@ -151,7 +149,6 @@ The overlap signal feeds this rule: a round capped at B+ for low overlap can nev
 - **Don't run fewer than 3 critics or merge the lenses.** Diverse lenses catch failure modes redundancy can't.
 - **Don't accept findings without their procedure artifacts.** The re-derivation, the trace, the test skeletons — the artifact is what separates evidence from critic theater.
 - **Don't accept critiques uncritically.** The judge kills manufactured objections; you may also reject a finding — but only explicitly, in the log, with reasoning. Silent partial application leaves the spec worse than before.
-- **Don't run more than 5 rounds.** If A++ isn't reached, the problem is upstream. Return to `anvil` or `forge`.
 - **Don't edit the review log retroactively.** Append-only. Past rounds are evidence of how the spec evolved.
 - **Don't proceed to quench on an A or A+.** A++ is the gate. If you're tempted to ship at A+, the convergence rule caught a real problem; stop and escalate.
 - **Don't let critics rewrite the user's prose.** Findings are pointers; apply fixes preserving the author's voice.
