@@ -16,13 +16,15 @@ SPECDIR=""
 PASS=0
 TOTAL=0
 
-run_check() { # <label> <fn>
+run_check() { # <label> <fn> [args...]
+  label="$1" fn="$2"
+  shift 2
   TOTAL=$((TOTAL + 1))
-  if "$2"; then
+  if "$fn" "$@"; then
     PASS=$((PASS + 1))
-    printf 'PASS %s\n' "$1"
+    printf 'PASS %s\n' "$label"
   else
-    printf 'FAIL %s\n' "$1"
+    printf 'FAIL %s\n' "$label"
   fi
 }
 
@@ -65,22 +67,19 @@ c_fr_mapping() {
   done <<<"$frs"
 }
 
-c_review_exists() {
-  f="$SPECDIR/review.md"
-  [ -f "$f" ] && grep -qE '^## Round' "$f"
+log_exists() { # <review-log>
+  [ -f "$1" ] && grep -qE '^## Round' "$1"
 }
 
-c_rating_appp() {
-  f="$SPECDIR/review.md"
-  [ -f "$f" ] || return 1
-  last="$(grep -iE 'rating:' "$f" | tail -n 1 || true)"
+log_rating_appp() { # <review-log>
+  [ -f "$1" ] || return 1
+  last="$(grep -iE 'rating:' "$1" | tail -n 1 || true)"
   printf '%s' "$last" | grep -q 'A++'
 }
 
-c_convergence() {
-  f="$SPECDIR/review.md"
-  [ -f "$f" ] || return 1
-  n="$(grep -cE '^## Round' "$f" || true)"
+log_convergence() { # <review-log>
+  [ -f "$1" ] || return 1
+  n="$(grep -cE '^## Round' "$1" || true)"
   [ "${n:-0}" -ge 2 ]
 }
 
@@ -108,24 +107,27 @@ score_workspace() {
   run_check plan-reasons-complete c_plan_reasons
   run_check tasks-use-T-ids c_tasks_ids
   run_check fr-task-mapping c_fr_mapping
-  run_check review-log-exists c_review_exists
-  run_check review-rating-A++ c_rating_appp
-  run_check review-convergence-2-rounds c_convergence
+  run_check review-log-exists log_exists "$SPECDIR/review.md"
+  run_check review-rating-A++ log_rating_appp "$SPECDIR/review.md"
+  run_check review-convergence-2-rounds log_convergence "$SPECDIR/review.md"
   run_check bdd-feature-exists c_bdd_feature
   run_check all-tasks-checked c_tasks_done
+  run_check code-review-log-exists log_exists "$SPECDIR/code-review.md"
+  run_check code-review-rating-A++ log_rating_appp "$SPECDIR/code-review.md"
+  run_check code-review-convergence-2-rounds log_convergence "$SPECDIR/code-review.md"
 
   printf 'SCORE %d %d\n' "$PASS" "$TOTAL"
 }
 
 self_test() {
   got="$(bash "$0" "$HERE/fixtures/complete" | tail -n 1)"
-  [ "$got" = "SCORE 14 14" ] || {
-    printf 'self-test FAIL: complete fixture scored "%s", want "SCORE 14 14"\n' "$got" >&2
+  [ "$got" = "SCORE 17 17" ] || {
+    printf 'self-test FAIL: complete fixture scored "%s", want "SCORE 17 17"\n' "$got" >&2
     exit 1
   }
   got="$(bash "$0" "$HERE/fixtures/incomplete" | tail -n 1)"
-  [ "$got" = "SCORE 2 14" ] || {
-    printf 'self-test FAIL: incomplete fixture scored "%s", want "SCORE 2 14"\n' "$got" >&2
+  [ "$got" = "SCORE 2 17" ] || {
+    printf 'self-test FAIL: incomplete fixture scored "%s", want "SCORE 2 17"\n' "$got" >&2
     exit 1
   }
   echo "scorer self-test: OK"

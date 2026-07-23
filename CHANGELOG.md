@@ -26,7 +26,7 @@ All notable changes to this project are documented here, following [Common Chang
 - Add stale-link pruning: install now sweeps damascus-owned links whose names are no longer shipped; uninstall removes every owned link, not just known names
 - Add Dependabot config for monthly vendor-submodule and GitHub Actions bumps, and a bug-report issue template
 - Add README sections: requirements, pinned-tag install, upgrading, support posture and licensing; document the release ritual and submodule bump policy in CLAUDE.md
-- Add `skillopt/` — a [microsoft/SkillOpt](https://github.com/microsoft/SkillOpt)-style optimization harness for the stage skills: benchmark task set (4 train / 2 held-out validation), `rollout.sh` (drives the pipeline headlessly through smithy's gates via the claude CLI), `score.sh` (14 deterministic checks encoding the stage-gate contracts, with fixtures and a `--self-test` that runs in CI), `run.sh` (epoch driver with per-split aggregation), and a rejected-edit buffer for the validation gate
+- Add `skillopt/` — a [microsoft/SkillOpt](https://github.com/microsoft/SkillOpt)-style optimization harness for the stage skills: benchmark task set (4 train / 2 held-out validation), `rollout.sh` (drives the pipeline headlessly through smithy's gates via the claude CLI), `score.sh` (17 deterministic checks encoding the stage-gate contracts through hone, with fixtures and a `--self-test` that runs in CI), `run.sh` (epoch driver with per-split aggregation), and a rejected-edit buffer for the validation gate
 
 ### Changed
 

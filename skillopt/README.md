@@ -1,6 +1,6 @@
 # SkillOpt harness
 
-An optimization loop for the five stage skills, after
+An optimization loop for the stage skills, after
 [microsoft/SkillOpt](https://github.com/microsoft/SkillOpt): the SKILL.md
 files are the trainable parameters, rollouts of the pipeline on benchmark
 tasks produce scores, and skill edits are only accepted through a
@@ -63,6 +63,9 @@ mechanically against the artifacts on disk — 1 point each:
 | A++ earned over ≥2 rounds | temper convergence rule |
 | A Gherkin `.feature` file exists | quench BDD-first ordering |
 | All tasks checked off | quench completion gate |
+| `code-review.md` exists with ≥1 round | hone output contract |
+| Final code-review rating is A++ | hone gate |
+| Code-review A++ earned over ≥2 rounds | hone convergence rule |
 
 ## The optimization loop
 
