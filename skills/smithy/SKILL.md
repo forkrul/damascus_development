@@ -56,10 +56,7 @@ Smithy **always** halts at these moments:
 4. **Spec ambiguity surfaced during quench** — Golden Rule: halt, edit spec/tasks first, then resume.
 5. **Drift detected** — if the host repo has a drift detector (e.g. a pre-commit hook warning that `src/**` changed without `specs/**` change) and it fires, halt and require justification.
 
-Each halt prints:
-- The stage just exited
-- The artifact path created/updated
-- The exact command to resume (`smithy --resume` or `smithy --start-from <stage>`)
+Each halt prints the handoff message below (stage exited, artifact path, resume command).
 
 ## Escape Hatches
 

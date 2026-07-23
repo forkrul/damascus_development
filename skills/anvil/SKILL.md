@@ -102,18 +102,13 @@ If `vendor/spec-kit/` is empty, the submodule is not initialized — run `git su
 
 ## Refusal Behavior
 
-If you skip the precondition check and start drafting `spec.md` without verifying the PRD, the artifact will be wrong and `temper` will catch it. Don't.
-
 If the user pushes you to skip the PRD ("just make me a spec"), explain: forging is a 5-minute step that prevents 50 minutes of rework. Then offer: forge → anvil in one go.
 
 ## Don't do this
 
-- **Don't generate spec/plan/tasks in parallel.** Order matters: spec → plan → tasks. Later artifacts derive from earlier ones; reversing leaks information.
 - **Don't write code or pseudocode in any of the three artifacts.** Tasks reference file paths and describe steps; they do not contain implementation. Code belongs to `quench`.
-- **Don't paper over PRD gaps with assumptions inside spec.md.** If a question only emerges here, return to the PRD, fix it, then resume. Otherwise the gap propagates downstream.
 - **Don't skip the FR ↔ task mapping check.** Every FR must map to ≥1 task; every task must declare which FR(s) it satisfies. An unmapped FR will be invisible during temper.
 - **Don't invent your own task ID scheme.** Use `T001, T002, …`; downstream stages (temper, smithy) parse this format.
-- **Don't invoke `superpowers:writing-plans`.** It is DENY-listed. Use anvil's spec-kit path (slash commands or vendored templates) instead.
 - **Don't proceed to temper without committing the artifacts.** Uncommitted artifacts mean temper might iterate on stale state.
 
 ## Gate to Next Stage

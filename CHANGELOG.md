@@ -22,6 +22,7 @@ All notable changes to this project are documented here, following [Common Chang
 
 ### Changed
 
+- Optimize the five stage SKILL.md files with a [SkillOpt](https://github.com/microsoft/SkillOpt)-style consolidation pass: bounded delete/replace edits that remove in-document duplication (constraints stated in both a dedicated section and the "Don't do this" list now live only in the dedicated section); merge temper's Convergence Rule and Iteration Cap sections; all behavioral contracts, gates, and DENY policies unchanged
 - Make `install.sh` portable to bash 3.2 / stock macOS (replace `declare -A` and `readlink -f` with portable equivalents)
 - Replace the external-API review gate in `temper` with a fully local adversarial panel (3 critic lenses + judge; A++ = two consecutive zero-blocking rounds, max 5 rounds)
 
