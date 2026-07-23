@@ -13,10 +13,13 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: bash syntax check
-        run: bash -n install.sh tests/smoke.sh
+        run: bash -n install.sh tests/smoke.sh skillopt/*.sh
 
       - name: shellcheck
-        run: shellcheck install.sh tests/smoke.sh
+        run: shellcheck install.sh tests/smoke.sh skillopt/*.sh
+
+      - name: skillopt scorer self-test
+        run: skillopt/score.sh --self-test
 
       - name: alias symlinks are relative and resolve to stage skills
         run: |
