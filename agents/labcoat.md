@@ -31,6 +31,12 @@ npx vitest --coverage
 
 Identify files with lowest coverage first. Prioritize business-critical paths.
 
+**Coverage locates untested code; it does not prove tests are strong** — a
+high-coverage suite can assert nothing. Treat % as a map, never a gate. Suite
+*strength* is measured by mutation testing at the quench gate (mutmut /
+cosmic-ray / Stryker scoped to changed files): a surviving mutant on a changed
+line = a weak or missing test to fix.
+
 ### 2. Unit Tests
 Test individual functions and classes in isolation.
 
@@ -123,11 +129,16 @@ vi.mock('./stripe-client', () => ({
 }));
 ```
 
-## TDD Cycle
+## TDD Cycle (quench discipline)
 
-1. **RED**: Write a failing test that defines expected behavior
-2. **AMBER**: Write minimal code to make it pass
-3. **GREEN**: Refactor while keeping tests green
+1. **RED**: the test exists and runs — failing, possibly for the wrong reason (imports, fixtures)
+2. **AMBER**: the test fails for the **right** reason — the assertion you care about, with **no
+   implementation written yet**. Record the failure message. From amber on, the test is frozen:
+   it may only change after `spec.md`/`tasks.md` change first (Golden Rule)
+3. **GREEN**: minimal implementation flips amber → green; refactor only at green
+
+Amber is the moment you trust the test. Skipping it (writing impl straight after red)
+means you never proved the test can catch the bug it targets.
 
 ## Output Format
 
@@ -140,7 +151,15 @@ For each file you test, provide:
 ## Rules
 
 - Never modify production code to make tests pass (unless fixing a genuine bug)
+- Never weaken an assertion, skip, or delete a frozen test to get green — the fix flows
+  spec → tasks → test, and the change is noted in the quench log
 - Tests must be independent - no order dependency
 - No sleeps or timers in unit tests
+- Green means **stable-green**: run new/changed tests 3× (randomized order if the runner
+  supports it, e.g. pytest-randomly); any flicker = red — fix the root cause, never
+  rerun-until-pass
+- Before refactoring existing behavior, write **characterization (golden-master) tests**
+  that pin current observable behavior — they play amber's role for code that already exists
+- Every test names the FR it verifies (`@pytest.mark.fr("FR-NNN")` or FR id in the name/docstring)
 - Clean up test data/fixtures after use
 - Follow existing test conventions in the project

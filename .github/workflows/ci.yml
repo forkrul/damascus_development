@@ -34,7 +34,7 @@ jobs:
 
       - name: every stage skill and agent named in install.sh exists on disk
         run: |
-          for s in forge anvil temper quench smithy; do
+          for s in forge anvil temper quench hone smithy; do
             [ -f "skills/$s/SKILL.md" ] || { echo "::error::skills/$s/SKILL.md missing"; exit 1; }
           done
           for a in bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat; do

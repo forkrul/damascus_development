@@ -19,21 +19,22 @@ DAMASCUS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CONSUMER_ROOT="$(pwd -P)"
 DRY_RUN=0
 
-STAGE_SKILLS=(forge anvil temper quench smithy)
+STAGE_SKILLS=(forge anvil temper quench hone smithy)
 # alias:stage pairs (plain array, not `declare -A` — bash 3.2 compatible)
 ALIASES=(
   prd-authoring:forge
   speckit-decomposition:anvil
   adversarial-review-loop:temper
   bdd-tdd-execution:quench
+  code-review-loop:hone
   spdd-pipeline:smithy
 )
 AGENTS=(bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat)
-# KEEP-class superpowers skills (DENY-class brainstorming/writing-plans/executing-plans
-# are intentionally NOT linked — forge/anvil/quench replace them).
+# KEEP-class superpowers skills (DENY-class brainstorming/writing-plans/executing-plans/
+# requesting-code-review are intentionally NOT linked — forge/anvil/quench/hone replace them).
 SUPERPOWERS_KEEP=(
   systematic-debugging subagent-driven-development dispatching-parallel-agents
-  verification-before-completion requesting-code-review receiving-code-review
+  verification-before-completion receiving-code-review
   finishing-a-development-branch using-git-worktrees writing-skills
   using-superpowers test-driven-development
 )
