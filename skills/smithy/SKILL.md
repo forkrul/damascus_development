@@ -1,13 +1,13 @@
 ---
 name: smithy
-description: Use when running a feature end-to-end through the SPDD pipeline (forge → anvil → temper → quench) with state-machine resumption. The smithy houses all four stages and decides which one to run based on disk artifacts. Wrap a feature in one invocation; halt at every gate.
+description: Use when running a feature end-to-end through the SPDD pipeline (forge → anvil → temper → quench → hone) with state-machine resumption. The smithy houses all five stages and decides which one to run based on disk artifacts. Wrap a feature in one invocation; halt at every gate.
 ---
 
 # Smithy — End-to-End SPDD Orchestrator
 
 ## Overview
 
-The smithy houses the forge, anvil, temper, and quench. Smithy is the orchestrator: it inspects the artifacts on disk, figures out which stage you're in, runs the next one, and halts at every gate for user signoff. One command takes a raw idea to merged PR.
+The smithy houses the forge, anvil, temper, quench, and hone. Smithy is the orchestrator: it inspects the artifacts on disk, figures out which stage you're in, runs the next one, and halts at every gate for user signoff. One command takes a raw idea to merged PR.
 
 **Announce at start:** "I'm using the smithy skill to orchestrate the full SPDD pipeline."
 
@@ -42,7 +42,9 @@ Smithy reads disk and decides which stage to invoke:
 │ review.md, last < A++       │ temper iterating│ continue temper     │
 │ review.md, A++              │ temper done     │ run quench          │
 │ tasks.md has unchecked items│ quench in progress │ continue quench  │
-│ all tasks checked, CI green │ quench done     │ hand off to finish  │
+│ all tasks checked, CI green │ quench done     │ run hone            │
+│ code-review.md, last < A++  │ hone iterating  │ continue hone       │
+│ code-review.md ends A++     │ hone done       │ hand off to finish  │
 └─────────────────────────────┴─────────────────┴─────────────────────┘
 ```
 
@@ -50,8 +52,8 @@ Smithy reads disk and decides which stage to invoke:
 
 Smithy **always** halts at these moments:
 
-1. **Stage exit** — after each of forge/anvil/temper/quench completes, halt and confirm before proceeding.
-2. **A++ not reached after 5 adversarial rounds** — temper escalates to user; smithy does not auto-retry.
+1. **Stage exit** — after each of forge/anvil/temper/quench/hone completes, halt and confirm before proceeding.
+2. **A++ not reached within the round cap** — temper escalates after 5 adversarial rounds, hone after 3; smithy does not auto-retry either.
 3. **Scope change mid-implementation** — if the user mid-quench says "actually let's also do X", halt; offer to return to forge for a fresh PRD or to amend the current one.
 4. **Spec ambiguity surfaced during quench** — Golden Rule: halt, edit spec/tasks first, then resume.
 5. **Drift detected** — if the host repo has a drift detector (e.g. a pre-commit hook warning that `src/**` changed without `specs/**` change) and it fires, halt and require justification.
@@ -83,7 +85,7 @@ Smithy invokes each stage Skill **directly**; it does not duplicate their bodies
 ## Don't do this
 
 - **Don't run two stages without halting between them.** The halt is where the user catches mistakes; removing it removes the safety.
-- **Don't auto-retry temper past 5 rounds.** Per `temper`'s contract, 5 rounds without A++ means the bottleneck is upstream. Smithy halts and asks the user; it does not loop indefinitely.
+- **Don't auto-retry temper past 5 rounds or hone past 3.** Per their contracts, hitting the cap without A++ means the bottleneck is upstream. Smithy halts and asks the user; it does not loop indefinitely.
 - **Don't make scope changes silently.** If quench reveals a missing FR, smithy halts and routes back through anvil (or forge if the change is structural). Don't append-and-hope.
 - **Don't duplicate stage Skill bodies inside smithy.** Smithy is an orchestrator, not a copy. If a stage's behavior should change, edit *that stage's SKILL.md*, not smithy.
 - **Don't lose track of which feature you're orchestrating.** Smithy works on one feature (one NNN sequence) at a time. Multi-feature orchestration is out of scope; use multiple smithy invocations.
@@ -113,7 +115,9 @@ After full pipeline completion:
 ✓ SPDD pipeline complete for feature NNN-<slug>.
   - PRD: .prd/NNN_<slug>.md
   - Spec: specs/NNN-<slug>/{spec,plan,tasks}.md
-  - Reviews: specs/NNN-<slug>/review.md (A++ in N rounds)
+  - Spec reviews: specs/NNN-<slug>/review.md (A++ in N rounds)
+  - Cycle log: specs/NNN-<slug>/quench-log.md (all tasks red→amber→green, gates passed)
+  - Code reviews: specs/NNN-<slug>/code-review.md (A++ in N rounds)
   - Tests: <count>
   - Implementation commits: <count>
   Next: superpowers:finishing-a-development-branch
@@ -133,5 +137,5 @@ Smithy enforces the Golden Rule globally: **any code change without a correspond
 
 ## References
 
-- The four stage Skills: `forge`, `anvil`, `temper`, `quench`
+- The five stage Skills: `forge`, `anvil`, `temper`, `quench`, `hone`
 - Fowler, M. *Structured Prompt-Driven Development* — Golden Rule

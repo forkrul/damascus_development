@@ -29,8 +29,8 @@ ln -s /nonexistent-foreign-target .claude/skills/foreign-link
 # --- install ---
 damascus
 
-for name in forge anvil temper quench smithy prd-authoring speckit-decomposition \
-            adversarial-review-loop bdd-tdd-execution spdd-pipeline; do
+for name in forge anvil temper quench hone smithy prd-authoring speckit-decomposition \
+            adversarial-review-loop bdd-tdd-execution code-review-loop spdd-pipeline; do
   [ -L ".claude/skills/$name" ] || fail "skills/$name not linked"
   [ -e ".claude/skills/$name" ] || fail "skills/$name is a broken link"
   [ -f ".claude/skills/$name/SKILL.md" ] || fail "skills/$name has no SKILL.md"
@@ -42,6 +42,7 @@ for agent in bdd-scenario-writer tdd-test-generator playwright-e2e-tester \
 done
 [ -L ".claude/skills/systematic-debugging" ] || fail "superpowers KEEP skills not linked"
 [ -e ".claude/skills/brainstorming" ] && fail "DENY-class superpowers skill was linked"
+[ -e ".claude/skills/requesting-code-review" ] && fail "DENY-class superpowers skill was linked (hone replaces it)"
 
 # ownership guarantee
 [ "$(cat .claude/skills/my-own-skill)" = keep ] || fail "consumer file modified"

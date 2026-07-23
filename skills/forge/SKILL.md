@@ -1,6 +1,6 @@
 ---
 name: forge
-description: Use when starting any non-trivial feature, before any code or spec. Forges a raw idea into a structured PRD using Fowler's REASONS Canvas. Stage 1 of the SPDD pipeline (forge → anvil → temper → quench, orchestrated by smithy).
+description: Use when starting any non-trivial feature, before any code or spec. Forges a raw idea into a structured PRD using Fowler's REASONS Canvas. Stage 1 of the SPDD pipeline (forge → anvil → temper → quench → hone, orchestrated by smithy).
 effort: high
 ---
 
@@ -101,9 +101,11 @@ Copy this into the new PRD file and elicit answers from the user section by sect
 - Coding conventions:
 - Quality bar:
 - Referenced principles (DRY, YAGNI, TDD, etc.):
+- Machine-checked (the linter/type-checker/scanner config that enforces each norm):
 
 ## Safeguards
 
+<!-- each Must-not becomes a property test or runtime assertion in quench -->
 - Must-not:
 - Failure modes considered:
 - Security/privacy:
@@ -131,6 +133,8 @@ Copy this into the new PRD file and elicit answers from the user section by sect
 
 - **Don't paraphrase the user's idea before writing it down.** Quote their exact words at the top of the PRD. Paraphrasing leaks your priors into the artifact.
 - **Don't skip sections you find boring.** Norms and Safeguards are exactly where bugs hide. If a section feels empty, that's a signal to ask another question, not skip it.
+- **Don't leave Norms as prose adjectives.** Any norm a tool can check — formatting, typing strictness, complexity limits, security rules — is written as the tool + config that enforces it; quench installs these as gates. Prose norms don't survive contact with an implementing agent; config does.
+- **Don't write Safeguards that can't become checks.** Each Must-not turns into a property test or runtime assertion during quench — "the system must never lose data" is a wish; "a discount must never increase the price" is a property.
 - **Don't fill in `[ASSUMED]` markers and then forget about them.** Every assumption must be confirmed before the next stage. Track them in the "Assumptions" block.
 - **Don't write FRs, SCs, or tasks here.** Those belong to `anvil`. Forge produces a PRD, full stop. If you find yourself writing FR-001, you have crossed a stage boundary.
 - **Don't merge multiple ideas into one PRD.** One feature = one PRD. If the user mixes "and also we should…", create a second PRD.

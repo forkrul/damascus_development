@@ -573,5 +573,8 @@ Before finishing:
 - [ ] No XPath selectors (fragile)
 - [ ] Screenshots on failure configured
 - [ ] Tests are deterministic (no flakiness)
+- [ ] New specs pass 3 consecutive runs with `retries: 0` locally (stable-green) —
+      CI retries exist to survive infra blips, never to paper over a flaky spec;
+      a flake is a bug to fix at its root, not to rerun away
 
 Write E2E tests that verify real user workflows, not implementation details.
