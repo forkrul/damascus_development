@@ -37,6 +37,10 @@ Both loops need **no external API**. Each round, three critic subagents with dis
 - **Temper** reviews the *spec triplet* (lenses: completeness, feasibility, testability; max 5 rounds). Each critic runs an active procedure — re-deriving sections, tracing a data flow, drafting per-FR test skeletons — and attaches the artifact; opinions without evidence are discarded. Trail: `specs/NNN-<slug>/review.md`, append-only.
 - **Hone** reviews the *implementation diff* the same way (lenses: spec-conformance, security, simplicity; max 3 rounds), task by task in **≤400-changed-line units**, after quench's tests and gates are green. Fixes never touch tests. Trail: `specs/NNN-<slug>/code-review.md`, append-only.
 
+### Finish step: docs + optional Atlas survey
+
+Once `hone` reaches A++, `smithy` runs a final finish step before the merge handoff: it updates `README.md` and `CHANGELOG.md` for the completed feature, then — **if the `atlas` skill is available in the consumer's environment** — invokes Atlas scoped to that feature to produce an intent-vs-reality survey for the handover. Atlas is not vendored by Damascus; where it is not installed the step is a silent no-op, exactly like the optional kanban sync.
+
 ## Requirements
 
 - git ≥ 2.13 (submodules)

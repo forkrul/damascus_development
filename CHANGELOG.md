@@ -34,6 +34,7 @@ All notable changes to this project are documented here, following [Common Chang
 - Change forge's Norms section to require machine-checkable form (the tool + config that enforces each norm, installed as gates by quench) and mark each Safeguard as the source of a property test or runtime assertion
 - Change anvil's task format: optional `[UX]`/`[REFACTOR]`/`[HARD]` tags and a ≤400-changed-line sizing budget per task (oversized tasks come back as anvil feedback via the quench log)
 - Change smithy's state machine to drive hone after quench and halt on hone's 3-round cap
+- Add a smithy finish step at the end of the cycle: after hone reaches A++, update `README.md` and `CHANGELOG.md` for the feature, then run the `atlas` skill scoped to the completed feature if it is available (silent no-op otherwise, like the kanban sync)
 - Move `superpowers:requesting-code-review` from KEEP to DENY — `hone` replaces it; `receiving-code-review` stays KEEP for applying findings
 - Replace the 95% line-coverage gate in `tdd-test-generator`'s pytest config with mutation-testing guidance and a registered `fr` marker for requirement traceability
 
