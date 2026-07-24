@@ -30,6 +30,7 @@ All notable changes to this project are documented here, following [Common Chang
 
 ### Changed
 
+- Run a second SkillOpt consolidation epoch over the hardened skills: dedupe `hone` (drop the three "Don't do this" items restating the ≤400-line review-unit budget, the procedure-artifact rule, and the DENY policy; merge Convergence Rule + Iteration Cap, matching temper), drop quench's three don't-items restating the test freeze, the coverage-never-gated rule, and the stable-green rule, and drop temper's don't-item restating the procedure-artifact rule — all contracts unchanged, each constraint now stated once in its dedicated section
 - Optimize the five stage SKILL.md files with a [SkillOpt](https://github.com/microsoft/SkillOpt)-style consolidation pass: bounded delete/replace edits that remove in-document duplication (constraints stated in both a dedicated section and the "Don't do this" list now live only in the dedicated section); merge temper's Convergence Rule and Iteration Cap sections; all behavioral contracts, gates, and DENY policies unchanged
 - Make `install.sh` portable to bash 3.2 / stock macOS (replace `declare -A` and `readlink -f` with portable equivalents)
 - Replace the external-API review gate in `temper` with a fully local adversarial panel (3 critic lenses + judge; A++ = two consecutive zero-blocking rounds, max 5 rounds)

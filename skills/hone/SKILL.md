@@ -138,13 +138,11 @@ Return:
 | **A+** | Tight; first zero-blocking round (clean pass 1 of 2) |
 | **A++** | Two consecutive zero-blocking rounds — nothing left a reviewer would block a merge on |
 
-## Convergence Rule
+## Convergence Rule and Cap
 
 **A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean
 round earns at most A+; the second confirms the first wasn't luck. A round capped by the
 overlap signal cannot count as clean — disjoint findings mean undiscovered defects remain.
-
-## Iteration Cap
 
 **Maximum 3 rounds**, then escalate to the user with the stuck findings. Quench's
 mechanical gates already caught what tools can catch; three rounds of human-shaped
@@ -159,13 +157,9 @@ spec (back to `temper`) or an oversized task (back to `anvil`).
   a test is wrong, that's a spec conversation (Golden Rule), not a hone edit.
 - **Don't fix beyond the findings.** Refactor-while-you're-in-there at this stage is
   scope creep on green code; put it in the log as a NIT for a future feature.
-- **Don't review a unit larger than ~400 changed lines.** Split by task/commit first.
-- **Don't accept conformance findings without the FR → file:line trace** (nor any
-  critic's finding without its procedure artifact). Evidence, not vibes.
 - **Don't merge on A or A+.** A++ is the gate, same as temper. Tempted to ship at A+
   means the convergence rule caught something; stop and escalate.
 - **Don't edit `code-review.md` retroactively.** Append-only, like `review.md`.
-- **Don't invoke `superpowers:requesting-code-review`.** It is DENY-listed; hone replaces it.
 
 ## Refusal Behavior
 

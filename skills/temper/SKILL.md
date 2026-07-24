@@ -147,7 +147,6 @@ The overlap signal feeds this rule: a round capped at B+ for low overlap can nev
 
 - **Don't review the triplet yourself in the main session.** The adversarial separation is the point: critics must be fresh subagents without your authoring context, or they inherit your blind spots.
 - **Don't run fewer than 3 critics or merge the lenses.** Diverse lenses catch failure modes redundancy can't.
-- **Don't accept findings without their procedure artifacts.** The re-derivation, the trace, the test skeletons — the artifact is what separates evidence from critic theater.
 - **Don't accept critiques uncritically.** The judge kills manufactured objections; you may also reject a finding — but only explicitly, in the log, with reasoning. Silent partial application leaves the spec worse than before.
 - **Don't edit the review log retroactively.** Append-only. Past rounds are evidence of how the spec evolved.
 - **Don't proceed to quench on an A or A+.** A++ is the gate. If you're tempted to ship at A+, the convergence rule caught a real problem; stop and escalate.
