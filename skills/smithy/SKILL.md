@@ -44,7 +44,8 @@ Smithy reads disk and decides which stage to invoke:
 │ tasks.md has unchecked items│ quench in progress │ continue quench  │
 │ all tasks checked, CI green │ quench done     │ run hone            │
 │ code-review.md, last < A++  │ hone iterating  │ continue hone       │
-│ code-review.md ends A++     │ hone done       │ hand off to finish  │
+│ code-review.md ends A++     │ hone done       │ run finish step     │
+│ README/CHANGELOG updated    │ finish done     │ hand off to merge   │
 └─────────────────────────────┴─────────────────┴─────────────────────┘
 ```
 
@@ -97,6 +98,27 @@ Smithy invokes each stage Skill **directly**; it does not duplicate their bodies
 
 Each stage that smithy drives runs **its own** board/state sync at its "Gate to Next Stage" — and only if the host repo ships one. **Smithy therefore adds NO sync call of its own** — doing so would double-sync every transition. Any post-merge sync belongs to the host repo's merge tooling.
 
+## Finish Step (post-hone, absolute end of the cycle)
+
+After `hone` reaches A++ and its gate is signed off, the feature is complete. Before
+handing off to `superpowers:finishing-a-development-branch`, smithy runs one final step:
+
+1. **Update `README.md` and `CHANGELOG.md`** for the completed feature (NNN). CHANGELOG
+   gets a single-line entry under `[Unreleased]` in the host repo's changelog convention;
+   README gets whatever the feature changed in user-facing behavior (skip README if the
+   feature is purely internal). This is the cycle's documentation gate.
+2. **Run Atlas, if available.** Every completed pipeline run is a major feature, so once
+   the docs are updated, smithy checks whether the **`atlas` skill is available in this
+   environment**. If it is, invoke it **scoped to the just-completed feature (NNN)** —
+   Atlas surveys that feature's artifacts (its PRD, spec triplet, review trails) and
+   verifies them against the shipped code, producing an intent-vs-reality map for the
+   handover. If `atlas` is **not** available, **skip silently** — exactly like the kanban
+   sync. Atlas is not vendored by Damascus; this step is a no-op wherever the consumer
+   has not installed it.
+
+This step runs **after** the hone gate signoff and is the last thing smithy does before
+the merge handoff. It adds no board sync of its own (see the single-call-site rule above).
+
 ## Handoff Messages
 
 After every stage exit, smithy prints:
@@ -120,6 +142,8 @@ After full pipeline completion:
   - Code reviews: specs/NNN-<slug>/code-review.md (A++ in N rounds)
   - Tests: <count>
   - Implementation commits: <count>
+  - Docs: README.md + CHANGELOG.md updated for NNN
+  - Atlas: <survey path> | skipped (atlas skill not available)
   Next: superpowers:finishing-a-development-branch
 ```
 
