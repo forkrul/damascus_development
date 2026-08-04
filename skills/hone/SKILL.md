@@ -98,9 +98,32 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
   log with reasoning)
 - **After each fix, the full test suite must be green again.** The test freeze holds
   through hone: a fix never edits a test unless `spec.md`/`tasks.md` changed first
+- **Every fix must be shown to fail without itself.** Revert the fix, watch the guarding
+  test go red, restore it. A fix whose test passes with the fix removed has not been
+  verified — only asserted — and does not count as applied. Record the check in the log.
 - A finding that reveals a *spec* gap is not fixed here — Golden Rule: halt and route
   back through smithy to `anvil`/`temper`
 - Append the round to `code-review.md`; if not converged, run the next round
+
+**The repair is the least-reviewed code in the pipeline, and it is written under the
+worst conditions.** It is authored at the end of a session, against a defect just
+understood, by the author of that defect, under pressure to close it — and then merged
+because it "fixes the finding". The critics scrutinised the implementation; nobody
+scrutinises the repair. In the run that produced this rule, **four of six blocking
+findings in round 3 were regressions rounds 1 and 2 had introduced, three of them
+credential leaks, every one under a fully green suite.** Two guards follow:
+
+- **Round N+1's panel reviews round N's fixes as part of the diff**, not just the
+  original implementation. A round whose fixes went unreviewed is not a clean round.
+- **A fix that moves a threshold must re-measure BOTH directions**, including the one
+  that was fine before. Optimising for the failure you were just shown, without
+  re-checking its opposite, is how a fix aimed at over-masking opened a credential leak.
+
+**A spec edit written to justify a code change is the highest-risk edit in the pipeline**,
+because it removes the very thing that would otherwise have contradicted the code. If a
+fix requires amending an A++-tempered artifact, the amendment's premise must be
+*measured and the measurement shown* — not reasoned, however obvious it sounds. Halt and
+re-temper instead where the change is a real requirement change.
 
 ## Critic Prompt Template
 
@@ -144,6 +167,11 @@ Return:
 round earns at most A+; the second confirms the first wasn't luck. A round capped by the
 overlap signal cannot count as clean — disjoint findings mean undiscovered defects remain.
 
+**A round is clean only if the previous round's fixes were in the diff its critics
+reviewed.** Zero blocking findings against code nobody looked at is not a signal. This is
+the same principle as the overlap cap: the rating measures what the panel *examined*, not
+what it happened to return.
+
 ## Iteration Cap
 
 **Maximum 3 rounds**, then escalate to the user with the stuck findings. Quench's
@@ -159,6 +187,11 @@ spec (back to `temper`) or an oversized task (back to `anvil`).
   a test is wrong, that's a spec conversation (Golden Rule), not a hone edit.
 - **Don't fix beyond the findings.** Refactor-while-you're-in-there at this stage is
   scope creep on green code; put it in the log as a NIT for a future feature.
+- **Don't treat a green suite as evidence a fix worked.** It was green before the fix and
+  it is green after; that is a statement about the tests, not the repair. Revert the fix
+  and watch the test fail, or you have not checked anything.
+- **Don't let the author of a fix be its only reviewer.** Same rule as the diff itself,
+  and for the same reason — a repair inherits every blind spot that produced the defect.
 - **Don't review a unit larger than ~400 changed lines.** Split by task/commit first.
 - **Don't accept conformance findings without the FR → file:line trace** (nor any
   critic's finding without its procedure artifact). Evidence, not vibes.
