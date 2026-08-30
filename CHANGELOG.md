@@ -29,6 +29,7 @@ All notable changes to this project are documented here, following [Common Chang
 
 ### Changed
 
+- Redraw `docs/assets/hero.png` with a real alpha channel: the previous file carried an opaque cream background remnant above the forge and 250 speckle regions of keying debris, and it showed four stages with `forge anvil temper quench` painted into its pixels. The new plate is five objects and no lettering — 5 regions for 5 objects, 2.06% partial alpha, no border bleed — with the stage names moved to a README caption
 - Make `install.sh` portable to bash 3.2 / stock macOS (replace `declare -A` and `readlink -f` with portable equivalents)
 - Replace the external-API review gate in `temper` with a fully local adversarial panel (3 critic lenses + judge; A++ = two consecutive zero-blocking rounds, max 5 rounds)
 - Change forge's Norms section to require machine-checkable form (the tool + config that enforces each norm, installed as gates by quench) and mark each Safeguard as the source of a property test or runtime assertion
