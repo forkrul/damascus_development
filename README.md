@@ -2,7 +2,9 @@
 
 **Structured Prompt-Driven Development, or BDD/TDD carnival, or Spec-it-to-death.** A raw idea enters; folded, hardened, tested steel leaves. Damascus packages the SPDD pipeline — five gated stages plus an orchestrator — as skills you symlink into any repo.
 
-![The Damascus pipeline](docs/assets/hero.png)
+![The Damascus pipeline: a coke forge, an anvil, a tempered blade, a quenching tub and a whetstone](docs/assets/hero.png)
+
+<sub>Left to right: **forge** · **anvil** · **temper** · **quench** · **hone**.</sub>
 
 ## The Pipeline
 
