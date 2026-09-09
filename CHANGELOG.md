@@ -4,9 +4,7 @@ All notable changes to this project are documented here, following [Common Chang
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-09
-
-First release. Everything below is new; there is no earlier version to change or fix against.
+Everything below is new; there is no earlier release to change or fix against. This section becomes `[0.1.0]` in the release PR (see CLAUDE.md, Releasing).
 
 ### Added
 
