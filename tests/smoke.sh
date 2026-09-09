@@ -41,8 +41,18 @@ for agent in bdd-scenario-writer tdd-test-generator playwright-e2e-tester \
   [ -e ".claude/agents/$agent.md" ] || fail "agents/$agent.md is a broken link"
 done
 [ -L ".claude/skills/systematic-debugging" ] || fail "superpowers KEEP skills not linked"
-[ -e ".claude/skills/brainstorming" ] && fail "DENY-class superpowers skill was linked"
-[ -e ".claude/skills/requesting-code-review" ] && fail "DENY-class superpowers skill was linked (hone replaces it)"
+for deny in brainstorming writing-plans executing-plans requesting-code-review \
+            using-superpowers subagent-driven-development; do
+  [ -e ".claude/skills/$deny" ] && fail "DENY-class superpowers skill was linked: $deny"
+done
+
+# every damascus-owned link is relative: a committed .claude/ must survive a fresh clone
+for l in .claude/skills/* .claude/agents/*.md; do
+  [ -L "$l" ] && [ "$l" != .claude/skills/foreign-link ] || continue
+  case "$(readlink "$l")" in
+    /*) fail "$l is an absolute symlink" ;;
+  esac
+done
 
 # ownership guarantee
 [ "$(cat .claude/skills/my-own-skill)" = keep ] || fail "consumer file modified"
@@ -72,6 +82,14 @@ rm .claude/skills/forge
 damascus --verify >/dev/null 2>&1 && fail "--verify passed with a missing link"
 damascus
 damascus --verify || fail "--verify failed after repair"
+
+# --- a non-damascus path in the way is skipped, reported, and fails the run ---
+mkdir -p .claude/skills/hone-shadow && mv .claude/skills/hone .claude/skills/hone-shadow/ \
+  && mkdir .claude/skills/hone && echo mine > .claude/skills/hone/SKILL.md
+damascus >/dev/null 2>&1 && fail "install exited 0 despite a skipped link"
+[ "$(cat .claude/skills/hone/SKILL.md)" = mine ] || fail "install touched a consumer-owned directory"
+rm -r .claude/skills/hone && mv .claude/skills/hone-shadow/hone .claude/skills/ && rmdir .claude/skills/hone-shadow
+damascus --verify || fail "--verify failed after restoring the shadowed link"
 
 # --- uninstall removes everything owned, nothing else ---
 damascus --uninstall

@@ -24,5 +24,5 @@ labels: bug
 
 ## For skill/pipeline bugs
 
-<!-- Which stage (forge / anvil / temper / quench / smithy), and the relevant
+<!-- Which stage (forge / anvil / temper / quench / hone / smithy), and the relevant
      artifact paths (.prd/NNN_*.md, specs/NNN-*/...) if applicable. -->

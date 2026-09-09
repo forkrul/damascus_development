@@ -4,42 +4,20 @@ All notable changes to this project are documented here, following [Common Chang
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-09
+
+First release. Everything below is new; there is no earlier version to change or fix against.
+
 ### Added
 
-- Add `hone` (alias `code-review-loop`) — stage 5: local adversarial review of the implementation diff (spec-conformance / security / simplicity lenses with mandatory active procedures, ≤400-changed-line review units, A++ = two consecutive zero-blocking rounds, max 3 rounds), between quench and merge
-- Add quench hardening gates: diff-scoped mutation testing (line coverage reported, never gated), host-repo static/type/security checks, an FR ↔ test traceability sweep (`@pytest.mark.fr("FR-NNN")` / `@FR-NNN` Gherkin tags), and a stable-green rule (new tests pass 3× in randomized order; a flake is red, never a retry)
-- Add the test freeze: from amber onward a test changes only after `spec.md`/`tasks.md` change first; test agents never write implementation and `fastapi-implementer` treats test files as read-only
-- Add `specs/NNN-<slug>/quench-log.md` — append-only per-task cycle log (red/amber/green timestamps, amber's failure message, diff size, gate results, waivers)
-- Add property-based tests (Hypothesis) derived from PRD Safeguards and SC invariants, characterization-test-first handling for `[REFACTOR]` tasks, and sample-and-select (2–3 independent candidates judged by the frozen tests) for `[HARD]` tasks
-- Add active reading procedures to temper's critics (re-derive sections, trace a data flow, draft per-FR test skeletons — findings without the artifact are discarded) and a capture-recapture overlap signal that caps near-disjoint rounds at B+ in both review loops
-
-- Add the five SPDD pipeline skills: `forge` (PRD authoring), `anvil` (spec/plan/tasks decomposition), `temper` (adversarial review loop), `quench` (BDD-first red-amber-green execution), `smithy` (state-machine orchestrator)
-- Add invocation aliases: `prd-authoring`, `speckit-decomposition`, `adversarial-review-loop`, `bdd-tdd-execution`, `spdd-pipeline`
-- Add the five quench dispatch agents: `bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`
-- Add `install.sh` for symlinking skills and agents into a consumer repo's `.claude/`
-- Vendor [obra/superpowers](https://github.com/obra/superpowers) v4.3.1 and [github/spec-kit](https://github.com/github/spec-kit) v0.10.1 as pinned submodules
-- Add `docs/production-readiness.md` — phased single-founder plan (licensing, CI, releases, installer hardening, automated maintenance)
-- Add MIT `LICENSE` (vendored submodules retain their upstream licenses)
-- Add CI workflow: shellcheck + syntax checks, alias-symlink and frontmatter integrity, install/uninstall smoke test on Ubuntu and macOS (including stock bash 3.2), and a changelog-updated gate on PRs
-- Add `tests/smoke.sh` — end-to-end installer test against a throwaway consumer repo (idempotency, ownership guarantee, pruning, verify, dry-run, uninstall)
-- Add `install.sh --verify` (link health report for bug reports) and `--dry-run` (print planned actions without touching anything)
-- Add stale-link pruning: install now sweeps damascus-owned links whose names are no longer shipped; uninstall removes every owned link, not just known names
+- Add the five SPDD pipeline stage skills and their orchestrator: `forge` (PRD authoring on Fowler's REASONS Canvas; Norms in machine-checkable form, each Safeguard the source of a property test), `anvil` (spec/plan/tasks decomposition via spec-kit slash commands or the vendored templates; `[UX]`/`[REFACTOR]`/`[HARD]` task tags and a ≤400-changed-line task budget), `temper` (local adversarial review of the spec triplet: three critics with mandatory active procedures, a judge with a capture-recapture overlap signal, A++ = two consecutive zero-blocking rounds, max 5 rounds), `quench` (BDD-first red-amber-green execution with the amber test freeze, diff-scoped mutation gate, static gates, FR ↔ test traceability, stable-green 3× rule, property tests, characterization-first `[REFACTOR]`, sample-and-select `[HARD]`, append-only `quench-log.md`), `hone` (the same adversarial loop pointed at the implementation diff: conformance / security / simplicity lenses, ≤400-changed-line review units, every fix shown to fail without itself, max 3 rounds), and `smithy` (stateless orchestrator whose every state is decidable from disk artifacts, halting at every gate; finish step updates README/CHANGELOG, runs Atlas if installed, and logs `FINISH:` to `smithy-log.md`)
+- Add invocation aliases: `prd-authoring`, `speckit-decomposition`, `adversarial-review-loop`, `bdd-tdd-execution`, `code-review-loop`, `spdd-pipeline`
+- Add the five quench dispatch agents — `bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat` — each a concise contract (amber = fails for the right reason, tests frozen from amber, test agents never implement, the implementer never edits tests, coverage reported never gated) with one short example per concept; quench's dispatch table states how to bind another stack to the same contract
+- Add `install.sh` for symlinking skills and agents into a consumer repo's `.claude/`: idempotent, bash 3.2 / stock macOS compatible, relative links only (pure-bash relative-path computation, no `realpath --relative-to`), touches only links that resolve into the damascus checkout, prunes damascus-owned links whose names are no longer shipped, refuses missing targets, and exits non-zero when any link could not be placed; `--verify` reports link health for bug reports, `--dry-run` prints planned actions, `--uninstall` removes every owned link
+- Add `tests/smoke.sh` — end-to-end installer test against a throwaway consumer repo: idempotency, the ownership guarantee, relative links, DENY skills never linked, pruning, verify, dry-run, a non-damascus path in the way fails the run, clean uninstall
+- Add CI: shellcheck + syntax checks; repo integrity sourced from `install.sh`'s own name arrays (stage skills, aliases, agents, KEEP skills all exist; every upstream superpowers skill is classified KEEP or DENY); frontmatter lint; vendor submodules must sit on an upstream tag named in the README; the example artifact trail must be complete; the smoke test on Ubuntu and macOS (including stock bash 3.2); a changelog-updated gate on PRs
+- Add a tag-triggered `Release` workflow that publishes the GitHub Release from the matching `CHANGELOG.md` section
+- Vendor [obra/superpowers](https://github.com/obra/superpowers) v6.3.0 and [github/spec-kit](https://github.com/github/spec-kit) v1.0.5 as pinned submodules, with the DENY / KEEP / CONDITIONAL policy: `brainstorming`, `writing-plans`, `executing-plans`, `requesting-code-review`, `using-superpowers`, `subagent-driven-development` are DENY (a stage replaces them, or they route into one that does); `test-driven-development` is linked but overridden by red-amber-green; the remaining seven are linked as-is
+- Add `examples/cart-discounts/` — one feature's complete artifact trail through all five gates (`.prd/`, spec triplet, `review.md`, `quench-log.md`, `code-review.md`, `smithy-log.md`) with a gate-by-gate reading guide and a "which stage do I start at?" note, also surfaced in the README
 - Add Dependabot config for monthly vendor-submodule and GitHub Actions bumps, and a bug-report issue template
-- Add README sections: requirements, pinned-tag install, upgrading, support posture and licensing; document the release ritual and submodule bump policy in CLAUDE.md
-
-### Changed
-
-- Redraw `docs/assets/hero.png` with a real alpha channel: the previous file carried an opaque cream background remnant above the forge and 250 speckle regions of keying debris, and it showed four stages with `forge anvil temper quench` painted into its pixels. The new plate is five objects and no lettering — 5 regions for 5 objects, 2.06% partial alpha, no border bleed — with the stage names moved to a README caption
-- Make `install.sh` portable to bash 3.2 / stock macOS (replace `declare -A` and `readlink -f` with portable equivalents)
-- Replace the external-API review gate in `temper` with a fully local adversarial panel (3 critic lenses + judge; A++ = two consecutive zero-blocking rounds, max 5 rounds)
-- Change forge's Norms section to require machine-checkable form (the tool + config that enforces each norm, installed as gates by quench) and mark each Safeguard as the source of a property test or runtime assertion
-- Change anvil's task format: optional `[UX]`/`[REFACTOR]`/`[HARD]` tags and a ≤400-changed-line sizing budget per task (oversized tasks come back as anvil feedback via the quench log)
-- Change smithy's state machine to drive hone after quench and halt on hone's 3-round cap
-- Add a smithy finish step at the end of the cycle: after hone reaches A++, update `README.md` and `CHANGELOG.md` for the feature, then run the `atlas` skill scoped to the completed feature if it is available (silent no-op otherwise, like the kanban sync)
-- Move `superpowers:requesting-code-review` from KEEP to DENY — `hone` replaces it; `receiving-code-review` stays KEEP for applying findings
-- Replace the 95% line-coverage gate in `tdd-test-generator`'s pytest config with mutation-testing guidance and a registered `fr` marker for requirement traceability
-
-### Fixed
-
-- Make the README hero image background transparent (renders cleanly on dark and light themes)
-- Fix three quench agents (`tdd-test-generator`, `labcoat`, `fastapi-implementer`) that defined Amber as "minimal implementation", contradicting quench's fails-for-the-right-reason contract
+- Add README (pipeline table, review-loop and finish-step descriptions, requirements incl. the shipped agents' Python/FastAPI shape, pinned-tag install, upgrading, vendored-submodule pins, policy table, support posture, credits), `docs/production-readiness.md` (the phased single-founder plan), MIT `LICENSE` (vendored submodules retain their upstream licenses), and the release ritual and bump policy in CLAUDE.md

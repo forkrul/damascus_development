@@ -19,691 +19,6 @@ Implement FastAPI applications that:
 - Use Pydantic for validation
 - Implement proper auth/authz when needed
 
-## FastAPI Best Practices
-
-### Project Structure
-```
-src/myapp/
-├── __init__.py
-├── main.py                    # FastAPI app initialization
-├── config.py                  # Configuration management
-├── dependencies.py            # Dependency injection
-├── api/
-│   ├── __init__.py
-│   ├── v1/
-│   │   ├── __init__.py
-│   │   ├── router.py          # Main v1 router
-│   │   ├── techniques.py      # Techniques endpoints
-│   │   ├── analytics.py       # Analytics endpoints
-│   │   └── auth.py            # Authentication endpoints
-├── models/                    # SQLAlchemy models
-│   ├── __init__.py
-│   ├── base.py
-│   └── technique.py
-├── schemas/                   # Pydantic schemas
-│   ├── __init__.py
-│   ├── technique.py           # Request/response schemas
-│   └── common.py              # Shared schemas
-├── services/                  # Business logic
-│   ├── __init__.py
-│   ├── technique_service.py
-│   └── auth_service.py
-├── repositories/              # Data access layer
-│   ├── __init__.py
-│   └── technique_repository.py
-└── exceptions.py              # Custom exceptions
-```
-
-### Application Initialization
-```python
-"""
-FastAPI application entry point.
-"""
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
-from myapp.api.v1.router import api_router
-from myapp.config import settings
-
-
-def create_app() -> FastAPI:
-    """
-    Create and configure FastAPI application.
-
-    Returns:
-        FastAPI: Configured application instance
-
-    Examples:
-        >>> app = create_app()
-        >>> assert app.title == "MyApp API"
-    """
-    app = FastAPI(
-        title=settings.PROJECT_NAME,
-        version=settings.VERSION,
-        description=settings.DESCRIPTION,
-        openapi_url=f"{settings.API_V1_STR}/openapi.json",
-        docs_url=f"{settings.API_V1_STR}/docs",
-        redoc_url=f"{settings.API_V1_STR}/redoc",
-    )
-
-    # CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Trusted host middleware
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS,
-    )
-
-    # Include routers
-    app.include_router(api_router, prefix=settings.API_V1_STR)
-
-    return app
-
-
-app = create_app()
-```
-
-### Router Organization
-```python
-"""
-API v1 router aggregation.
-"""
-from fastapi import APIRouter
-
-from myapp.api.v1 import techniques, analytics, auth
-
-api_router = APIRouter()
-
-api_router.include_router(
-    techniques.router,
-    prefix="/techniques",
-    tags=["techniques"]
-)
-
-api_router.include_router(
-    analytics.router,
-    prefix="/analytics",
-    tags=["analytics"]
-)
-
-api_router.include_router(
-    auth.router,
-    prefix="/auth",
-    tags=["authentication"]
-)
-```
-
-## Pydantic Schemas
-
-### Request/Response Models
-```python
-"""
-Pydantic schemas for Technique API.
-"""
-from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, validator
-
-
-class TechniqueBase(BaseModel):
-    """Base schema for Technique with shared fields."""
-
-    stix_id: str = Field(..., description="STIX 2.1 identifier")
-    name: str = Field(..., min_length=1, max_length=255)
-    tactic: str = Field(..., description="MITRE ATT&CK tactic")
-    description: Optional[str] = Field(None, description="Technique description")
-
-    @validator("stix_id")
-    def validate_stix_id(cls, v: str) -> str:
-        """Validate STIX ID format."""
-        if not v.startswith("attack-pattern--"):
-            raise ValueError("STIX ID must start with 'attack-pattern--'")
-        if len(v) != 49:  # attack-pattern-- + 36 char UUID
-            raise ValueError("Invalid STIX ID format")
-        return v
-
-
-class TechniqueCreate(TechniqueBase):
-    """Schema for creating a new Technique."""
-    pass
-
-
-class TechniqueUpdate(BaseModel):
-    """Schema for updating a Technique (all fields optional)."""
-
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    tactic: Optional[str] = None
-    description: Optional[str] = None
-
-
-class TechniqueResponse(TechniqueBase):
-    """Schema for Technique response."""
-
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    is_deleted: bool = False
-
-    class Config:
-        from_attributes = True  # For SQLAlchemy model conversion
-
-
-class TechniqueListResponse(BaseModel):
-    """Schema for paginated Technique list."""
-
-    items: list[TechniqueResponse]
-    total: int
-    page: int
-    page_size: int
-    pages: int
-```
-
-## API Endpoints
-
-### CRUD Operations
-```python
-"""
-Technique API endpoints.
-"""
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-
-from myapp.dependencies import get_db
-from myapp.schemas.technique import (
-    TechniqueCreate,
-    TechniqueUpdate,
-    TechniqueResponse,
-    TechniqueListResponse
-)
-from myapp.services.technique_service import TechniqueService
-
-router = APIRouter()
-
-
-@router.post(
-    "/",
-    response_model=TechniqueResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new technique",
-    description="Create a new ATT&CK technique with the provided data."
-)
-async def create_technique(
-    technique: TechniqueCreate,
-    db: Session = Depends(get_db)
-) -> TechniqueResponse:
-    """
-    Create a new technique.
-
-    Args:
-        technique: Technique data to create
-        db: Database session (injected)
-
-    Returns:
-        TechniqueResponse: Created technique
-
-    Raises:
-        HTTPException: 400 if validation fails
-        HTTPException: 409 if STIX ID already exists
-
-    Examples:
-        >>> response = await create_technique(
-        ...     TechniqueCreate(
-        ...         stix_id="attack-pattern--abc123",
-        ...         name="PowerShell",
-        ...         tactic="execution"
-        ...     )
-        ... )
-        >>> assert response.name == "PowerShell"
-    """
-    service = TechniqueService(db)
-
-    try:
-        return service.create(technique)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Technique with STIX ID already exists: {technique.stix_id}"
-        )
-
-
-@router.get(
-    "/{technique_id}",
-    response_model=TechniqueResponse,
-    summary="Get technique by ID",
-    description="Retrieve a technique by its database ID."
-)
-async def get_technique(
-    technique_id: int,
-    db: Session = Depends(get_db)
-) -> TechniqueResponse:
-    """
-    Get technique by ID.
-
-    Args:
-        technique_id: Technique database ID
-        db: Database session (injected)
-
-    Returns:
-        TechniqueResponse: Technique details
-
-    Raises:
-        HTTPException: 404 if technique not found
-    """
-    service = TechniqueService(db)
-    technique = service.get_by_id(technique_id)
-
-    if not technique:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Technique with ID {technique_id} not found"
-        )
-
-    return technique
-
-
-@router.get(
-    "/",
-    response_model=TechniqueListResponse,
-    summary="List techniques",
-    description="List techniques with pagination, filtering, and sorting."
-)
-async def list_techniques(
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    tactic: Optional[str] = Query(None, description="Filter by tactic"),
-    search: Optional[str] = Query(None, description="Search in name/description"),
-    sort_by: str = Query("created_at", description="Sort field"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
-    db: Session = Depends(get_db)
-) -> TechniqueListResponse:
-    """
-    List techniques with pagination and filtering.
-
-    Args:
-        page: Page number (1-indexed)
-        page_size: Number of items per page
-        tactic: Optional tactic filter
-        search: Optional search query
-        sort_by: Field to sort by
-        sort_order: Sort order (asc/desc)
-        db: Database session (injected)
-
-    Returns:
-        TechniqueListResponse: Paginated list of techniques
-    """
-    service = TechniqueService(db)
-
-    filters = {}
-    if tactic:
-        filters["tactic"] = tactic
-    if search:
-        filters["search"] = search
-
-    result = service.list(
-        page=page,
-        page_size=page_size,
-        filters=filters,
-        sort_by=sort_by,
-        sort_order=sort_order
-    )
-
-    return result
-
-
-@router.put(
-    "/{technique_id}",
-    response_model=TechniqueResponse,
-    summary="Update technique",
-    description="Update an existing technique."
-)
-async def update_technique(
-    technique_id: int,
-    technique_update: TechniqueUpdate,
-    db: Session = Depends(get_db)
-) -> TechniqueResponse:
-    """
-    Update technique.
-
-    Args:
-        technique_id: Technique database ID
-        technique_update: Fields to update
-        db: Database session (injected)
-
-    Returns:
-        TechniqueResponse: Updated technique
-
-    Raises:
-        HTTPException: 404 if technique not found
-        HTTPException: 400 if validation fails
-    """
-    service = TechniqueService(db)
-
-    try:
-        technique = service.update(technique_id, technique_update)
-        if not technique:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Technique with ID {technique_id} not found"
-            )
-        return technique
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.delete(
-    "/{technique_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete technique",
-    description="Soft delete a technique (sets is_deleted flag)."
-)
-async def delete_technique(
-    technique_id: int,
-    db: Session = Depends(get_db)
-) -> None:
-    """
-    Soft delete technique.
-
-    Args:
-        technique_id: Technique database ID
-        db: Database session (injected)
-
-    Raises:
-        HTTPException: 404 if technique not found
-    """
-    service = TechniqueService(db)
-
-    if not service.delete(technique_id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Technique with ID {technique_id} not found"
-        )
-```
-
-## Service Layer
-
-### Business Logic Separation
-```python
-"""
-Technique service layer for business logic.
-"""
-from typing import Optional
-from sqlalchemy.orm import Session
-
-from myapp.models.technique import Technique
-from myapp.schemas.technique import TechniqueCreate, TechniqueUpdate
-
-
-class TechniqueService:
-    """Service for Technique business logic."""
-
-    def __init__(self, db: Session):
-        """
-        Initialize service with database session.
-
-        Args:
-            db: SQLAlchemy database session
-        """
-        self.db = db
-
-    def create(self, technique_data: TechniqueCreate) -> Technique:
-        """
-        Create a new technique.
-
-        Args:
-            technique_data: Technique creation data
-
-        Returns:
-            Technique: Created technique model
-
-        Raises:
-            ValueError: If STIX ID already exists
-        """
-        # Check for existing STIX ID
-        existing = self.db.query(Technique).filter(
-            Technique.stix_id == technique_data.stix_id,
-            Technique.is_deleted == False
-        ).first()
-
-        if existing:
-            raise ValueError(f"Technique with STIX ID {technique_data.stix_id} already exists")
-
-        # Create new technique
-        technique = Technique(**technique_data.model_dump())
-        self.db.add(technique)
-        self.db.commit()
-        self.db.refresh(technique)
-
-        return technique
-
-    def get_by_id(self, technique_id: int) -> Optional[Technique]:
-        """
-        Get technique by ID.
-
-        Args:
-            technique_id: Technique database ID
-
-        Returns:
-            Optional[Technique]: Technique if found, None otherwise
-        """
-        return self.db.query(Technique).filter(
-            Technique.id == technique_id,
-            Technique.is_deleted == False
-        ).first()
-
-    def list(
-        self,
-        page: int = 1,
-        page_size: int = 20,
-        filters: Optional[dict] = None,
-        sort_by: str = "created_at",
-        sort_order: str = "desc"
-    ) -> dict:
-        """
-        List techniques with pagination and filtering.
-
-        Args:
-            page: Page number (1-indexed)
-            page_size: Items per page
-            filters: Optional filters (tactic, search)
-            sort_by: Field to sort by
-            sort_order: Sort order (asc/desc)
-
-        Returns:
-            dict: Paginated results with items, total, page, page_size, pages
-        """
-        query = self.db.query(Technique).filter(Technique.is_deleted == False)
-
-        # Apply filters
-        if filters:
-            if "tactic" in filters:
-                query = query.filter(Technique.tactic == filters["tactic"])
-            if "search" in filters:
-                search_term = f"%{filters['search']}%"
-                query = query.filter(
-                    (Technique.name.ilike(search_term)) |
-                    (Technique.description.ilike(search_term))
-                )
-
-        # Total count
-        total = query.count()
-
-        # Sorting
-        sort_column = getattr(Technique, sort_by, Technique.created_at)
-        if sort_order == "desc":
-            query = query.order_by(sort_column.desc())
-        else:
-            query = query.order_by(sort_column.asc())
-
-        # Pagination
-        offset = (page - 1) * page_size
-        items = query.limit(page_size).offset(offset).all()
-
-        # Calculate pages
-        pages = (total + page_size - 1) // page_size
-
-        return {
-            "items": items,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "pages": pages
-        }
-
-    def update(self, technique_id: int, technique_update: TechniqueUpdate) -> Optional[Technique]:
-        """
-        Update technique.
-
-        Args:
-            technique_id: Technique database ID
-            technique_update: Fields to update
-
-        Returns:
-            Optional[Technique]: Updated technique if found, None otherwise
-        """
-        technique = self.get_by_id(technique_id)
-        if not technique:
-            return None
-
-        # Update only provided fields
-        update_data = technique_update.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(technique, field, value)
-
-        self.db.commit()
-        self.db.refresh(technique)
-
-        return technique
-
-    def delete(self, technique_id: int) -> bool:
-        """
-        Soft delete technique.
-
-        Args:
-            technique_id: Technique database ID
-
-        Returns:
-            bool: True if deleted, False if not found
-        """
-        technique = self.get_by_id(technique_id)
-        if not technique:
-            return False
-
-        technique.soft_delete()
-        self.db.commit()
-
-        return True
-```
-
-## Dependency Injection
-
-```python
-"""
-Dependency injection for FastAPI.
-"""
-from typing import Generator
-from sqlalchemy.orm import Session
-
-from myapp.database import SessionLocal
-
-
-def get_db() -> Generator[Session, None, None]:
-    """
-    Get database session.
-
-    Yields:
-        Session: SQLAlchemy database session
-
-    Examples:
-        >>> @app.get("/")
-        >>> def index(db: Session = Depends(get_db)):
-        >>>     return db.query(Model).all()
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-```
-
-## Error Handling
-
-### Custom Exceptions
-```python
-"""
-Custom exceptions for the application.
-"""
-
-
-class AppException(Exception):
-    """Base application exception."""
-    pass
-
-
-class NotFoundError(AppException):
-    """Resource not found."""
-    pass
-
-
-class ValidationError(AppException):
-    """Validation failed."""
-    pass
-
-
-class AuthenticationError(AppException):
-    """Authentication failed."""
-    pass
-
-
-class AuthorizationError(AppException):
-    """Authorization failed."""
-    pass
-```
-
-### Exception Handlers
-```python
-"""
-Global exception handlers.
-"""
-from fastapi import Request, status
-from fastapi.responses import JSONResponse
-
-from myapp.exceptions import NotFoundError, ValidationError
-
-
-@app.exception_handler(NotFoundError)
-async def not_found_handler(request: Request, exc: NotFoundError):
-    """Handle NotFoundError."""
-    return JSONResponse(
-        status_code=status.HTTP_404_NOT_FOUND,
-        content={"detail": str(exc)}
-    )
-
-
-@app.exception_handler(ValidationError)
-async def validation_error_handler(request: Request, exc: ValidationError):
-    """Handle ValidationError."""
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": str(exc)}
-    )
-```
-
 ## Test Freeze (non-negotiable)
 
 Test files are **read-only** for you. You never edit, weaken, skip, or delete a test to
@@ -722,9 +37,7 @@ When asked to implement FastAPI code:
    - A test failing for the wrong reason goes back to the test generator — implementation waits
 
 2. **Read the tests** to understand requirements
-   - What endpoints are needed?
-   - What inputs/outputs?
-   - What error cases?
+   - What endpoints are needed? What inputs/outputs? What error cases?
 
 3. **Create minimal implementation (drive AMBER → GREEN)**
    - Just enough to make the failing assertions pass
@@ -736,19 +49,160 @@ When asked to implement FastAPI code:
    ```
 
 5. **Refactor at GREEN**
-   - Add comprehensive docstrings
-   - Improve error handling
-   - Add type hints
-   - Extract common patterns
-   - Add OpenAPI documentation
+   - Add comprehensive docstrings, type hints, and OpenAPI documentation
+   - Improve error handling; extract common patterns
    - Assert your invariants: Safeguards from the spec become precondition checks and
      runtime assertions at service boundaries (explicit raises for callers' mistakes,
      `assert` for must-never-happen internal states) — not comments
 
-6. **Verify tests still pass**
+6. **Verify stable-green and pass the hardening gates**
    ```bash
    pytest tests/ -v --cov
    ```
+   - Green means stable-green: run the new/changed tests 3 times (randomized order if
+     the runner supports it). Any flicker is a bug to root-cause, not a test to rerun
+   - Run the host repo's static gates — type checker (strict), linter, security scanner.
+     Any finding on lines you changed is red
+
+## FastAPI Patterns
+
+Keep layers separated: `api/` (routers) → `services/` (business logic) → `models/`
+(SQLAlchemy), with `schemas/` (Pydantic), `dependencies.py`, and `exceptions.py`
+alongside. One short example per concept follows.
+
+### Router + Pydantic schema
+```python
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field, validator
+from sqlalchemy.orm import Session
+
+from myapp.dependencies import get_db
+from myapp.services.technique_service import TechniqueService
+
+
+class TechniqueCreate(BaseModel):
+    stix_id: str = Field(..., description="STIX 2.1 identifier")
+    name: str = Field(..., min_length=1, max_length=255)
+    tactic: str
+
+    @validator("stix_id")
+    def validate_stix_id(cls, v: str) -> str:
+        if not v.startswith("attack-pattern--"):
+            raise ValueError("STIX ID must start with 'attack-pattern--'")
+        return v
+
+
+class TechniqueResponse(TechniqueCreate):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True  # SQLAlchemy model conversion
+
+
+router = APIRouter()
+
+
+@router.post("/", response_model=TechniqueResponse,
+             status_code=status.HTTP_201_CREATED, summary="Create a technique")
+async def create_technique(
+    technique: TechniqueCreate, db: Session = Depends(get_db)
+) -> TechniqueResponse:
+    """Create a technique. Raises 400 on validation failure, 409 on duplicate STIX ID."""
+    try:
+        return TechniqueService(db).create(technique)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+```
+
+Routers are aggregated in `api/v1/router.py` (`api_router.include_router(techniques.router,
+prefix="/techniques", tags=["techniques"])`) and mounted in `main.py` via a `create_app()`
+factory that sets title/version/openapi_url and CORS/TrustedHost middleware.
+
+### Service layer
+```python
+from typing import Optional
+from sqlalchemy.orm import Session
+
+from myapp.models.technique import Technique
+from myapp.schemas.technique import TechniqueCreate
+
+
+class TechniqueService:
+    """Business logic for techniques; the router stays thin."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, data: TechniqueCreate) -> Technique:
+        existing = self.db.query(Technique).filter(
+            Technique.stix_id == data.stix_id, Technique.is_deleted == False
+        ).first()
+        if existing:
+            raise ValueError(f"Technique with STIX ID {data.stix_id} already exists")
+        technique = Technique(**data.model_dump())
+        self.db.add(technique)
+        self.db.commit()
+        self.db.refresh(technique)
+        return technique
+
+    def get_by_id(self, technique_id: int) -> Optional[Technique]:
+        return self.db.query(Technique).filter(
+            Technique.id == technique_id, Technique.is_deleted == False
+        ).first()
+
+    def delete(self, technique_id: int) -> bool:
+        """Soft delete: set is_deleted, never hard delete."""
+        technique = self.get_by_id(technique_id)
+        if not technique:
+            return False
+        technique.soft_delete()
+        self.db.commit()
+        return True
+```
+
+Updates apply `model_dump(exclude_unset=True)` so only provided fields change; list
+endpoints take `page`/`page_size` via `Query(..., ge=1)` and return items plus totals.
+
+### Dependency injection
+```python
+from typing import Generator
+from sqlalchemy.orm import Session
+
+from myapp.database import SessionLocal
+
+
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+### Error handling
+```python
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
+
+
+class AppException(Exception):
+    """Base application exception (subclass per case: NotFoundError, ValidationError,
+    AuthenticationError, AuthorizationError)."""
+
+
+class NotFoundError(AppException):
+    pass
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+```
+
+Inside routers, raise `HTTPException` with the correct status (400 validation, 404 not
+found, 409 conflict); let global handlers map domain exceptions to responses.
 
 ## Quality Checklist
 
@@ -763,7 +217,8 @@ Before finishing:
 - [ ] Soft delete used (not hard delete)
 - [ ] No hardcoded values or credentials
 - [ ] Spec Safeguards enforced as runtime checks (validation raises, invariant assertions)
-- [ ] Tests pass (pytest)
+- [ ] Tests pass (pytest), stable across 3 runs
+- [ ] Static gates (type checker, linter, security scanner) clean on changed lines
 - [ ] No test file appears in your diff (`git diff --name-only` shows src only)
 - [ ] OpenAPI docs render correctly (/docs)
 

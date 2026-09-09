@@ -30,17 +30,20 @@ ALIASES=(
   spdd-pipeline:smithy
 )
 AGENTS=(bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat)
-# KEEP-class superpowers skills (DENY-class brainstorming/writing-plans/executing-plans/
-# requesting-code-review are intentionally NOT linked — forge/anvil/quench/hone replace them).
+# KEEP-class superpowers skills. DENY-class skills are intentionally NOT linked:
+# brainstorming/writing-plans/executing-plans/requesting-code-review overlap a stage
+# (forge/anvil/quench/hone replace them), and using-superpowers/subagent-driven-development
+# route back into those DENY skills. See the policy table in README.md.
 SUPERPOWERS_KEEP=(
-  systematic-debugging subagent-driven-development dispatching-parallel-agents
+  systematic-debugging dispatching-parallel-agents
   verification-before-completion receiving-code-review
   finishing-a-development-branch using-git-worktrees writing-skills
-  using-superpowers test-driven-development
+  test-driven-development
 )
 
 SKILLS_DIR="$CONSUMER_ROOT/.claude/skills"
 AGENTS_DIR="$CONSUMER_ROOT/.claude/agents"
+PROBLEMS=0 # counted by install (skipped/missing links) and verify (unhealthy links)
 
 err()  { printf '\033[0;31m[ERR]\033[0m %s\n' "$*" >&2; }
 ok()   { printf '\033[0;32m[OK]\033[0m %s\n' "$*"; }
@@ -67,9 +70,23 @@ resolve() { # portable readlink -f: canonicalize a path, following symlinks
   fi
 }
 
-rel_or_abs() { # rel_or_abs <target> <linkdir> — relative path if possible
-  local target=$1 linkdir=$2
-  realpath --relative-to="$linkdir" "$target" 2>/dev/null || printf '%s' "$target"
+relpath() { # relpath <target> <from-dir> — relative path between two absolute, physical paths.
+  # Pure bash: `realpath --relative-to` is GNU-only, and an absolute fallback would leave
+  # links that break as soon as the consumer repo is cloned somewhere else.
+  local target=${1%/} from=${2%/} up='' rest
+  [ "$target" = "$from" ] && { printf '.'; return 0; }
+  while :; do
+    case $target in
+      "$from"/*) rest=${target#"$from"/}; break ;;
+    esac
+    from=${from%/*}
+    up="../$up"
+  done
+  printf '%s%s' "$up" "$rest"
+}
+
+physical_dir() { # physical (symlink-free) path of a directory; falls back to the given path
+  (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"
 }
 
 owned_by_damascus() { # true if existing path is a symlink resolving into damascus
@@ -89,15 +106,21 @@ expected_skill_names() { # every name damascus ships into .claude/skills/
 
 link() { # link <target> <linkpath>
   local target=$1 linkpath=$2
+  if [ ! -e "$target" ]; then
+    err "skip $(basename "$linkpath") — target missing: $target (upstream renamed or removed it?)"
+    PROBLEMS=$((PROBLEMS + 1))
+    return 0
+  fi
   if [ -e "$linkpath" ] || [ -L "$linkpath" ]; then
     if owned_by_damascus "$linkpath"; then
       run rm "$linkpath"
     else
       err "skip $linkpath — exists and is not a damascus-owned symlink"
+      PROBLEMS=$((PROBLEMS + 1))
       return 0
     fi
   fi
-  run ln -s "$(rel_or_abs "$target" "$(dirname "$linkpath")")" "$linkpath"
+  run ln -s "$(relpath "$target" "$(physical_dir "$(dirname "$linkpath")")")" "$linkpath"
   say_done "linked $(basename "$linkpath")"
 }
 
@@ -130,7 +153,7 @@ preflight() {
     err "current directory is not a git repository"
     exit 1
   fi
-  if [ ! -f "$DAMASCUS_ROOT/vendor/superpowers/skills/using-superpowers/SKILL.md" ]; then
+  if [ ! -f "$DAMASCUS_ROOT/vendor/superpowers/skills/systematic-debugging/SKILL.md" ]; then
     err "vendor/superpowers is empty — run inside the damascus checkout:"
     err "  git -C '$DAMASCUS_ROOT' submodule update --init --recursive"
     exit 1
@@ -170,6 +193,10 @@ install() {
   info "pruning stale damascus-owned links"
   prune
 
+  if [ "$PROBLEMS" -gt 0 ]; then
+    err "$PROBLEMS link(s) could not be installed (see [ERR] lines above)"
+    exit 1
+  fi
   say_done "damascus installed into $SKILLS_DIR and $AGENTS_DIR"
   info "entrypoint: invoke the 'smithy' skill (or 'forge' to start a PRD)"
 }
@@ -184,8 +211,6 @@ uninstall() { # remove EVERY damascus-owned link, including stale names
   done
   say_done "damascus symlinks removed"
 }
-
-PROBLEMS=0
 
 check_link() { # check_link <linkpath> <expected-target>
   local linkpath=$1 target=$2
@@ -265,16 +290,23 @@ Run from the CONSUMER repo root (not from inside damascus).
 EOF
 }
 
-MODE=install
-for arg in "$@"; do
-  case $arg in
-    --install)   MODE=install ;;
-    --uninstall) MODE=uninstall ;;
-    --verify)    MODE=verify ;;
-    --dry-run)   DRY_RUN=1 ;;
-    -h|--help)   usage; exit 0 ;;
-    *) err "unknown flag: $arg (use --install, --uninstall, --verify, --dry-run)"; exit 1 ;;
-  esac
-done
+main() {
+  local mode=install arg
+  for arg in "$@"; do
+    case $arg in
+      --install)   mode=install ;;
+      --uninstall) mode=uninstall ;;
+      --verify)    mode=verify ;;
+      --dry-run)   DRY_RUN=1 ;;
+      -h|--help)   usage; exit 0 ;;
+      *) err "unknown flag: $arg (use --install, --uninstall, --verify, --dry-run)"; exit 1 ;;
+    esac
+  done
+  "$mode"
+}
 
-"$MODE"
+# When sourced (CI reads the STAGE_SKILLS/ALIASES/AGENTS/SUPERPOWERS_KEEP manifests
+# from here so they cannot drift from the script), define everything and do nothing.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi

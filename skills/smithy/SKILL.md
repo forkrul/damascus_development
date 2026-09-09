@@ -1,6 +1,7 @@
 ---
 name: smithy
 description: Use when running a feature end-to-end through the SPDD pipeline (forge → anvil → temper → quench → hone) with state-machine resumption. The smithy houses all five stages and decides which one to run based on disk artifacts. Wrap a feature in one invocation; halt at every gate.
+effort: medium
 ---
 
 # Smithy — End-to-End SPDD Orchestrator
@@ -11,7 +12,7 @@ The smithy houses the forge, anvil, temper, quench, and hone. Smithy is the orch
 
 **Announce at start:** "I'm using the smithy skill to orchestrate the full SPDD pipeline."
 
-**State lives in:** the disk artifacts themselves. Smithy is stateless — it reads `.prd/`, `specs/`, and `review.md` to determine the current stage.
+**State lives in:** the disk artifacts themselves. Smithy is stateless — it reads `.prd/`, `specs/NNN-<slug>/` (`review.md`, `tasks.md`, `quench-log.md`, `code-review.md`, `smithy-log.md`) to determine the current stage. Every row of the state machine is decidable from those files alone; nothing depends on CI status or a memory of what happened last session.
 
 ## When to use
 
@@ -42,12 +43,16 @@ Smithy reads disk and decides which stage to invoke:
 │ review.md, last < A++       │ temper iterating│ continue temper     │
 │ review.md, A++              │ temper done     │ run quench          │
 │ tasks.md has unchecked items│ quench in progress │ continue quench  │
-│ all tasks checked, CI green │ quench done     │ run hone            │
+│ all tasks checked, every    │ quench done     │ run hone            │
+│  task has a quench-log green│                 │                     │
 │ code-review.md, last < A++  │ hone iterating  │ continue hone       │
-│ code-review.md ends A++     │ hone done       │ run finish step     │
-│ README/CHANGELOG updated    │ finish done     │ hand off to merge   │
+│ code-review.md ends A++,    │ hone done       │ run finish step     │
+│  no FINISH in smithy-log.md │                 │                     │
+│ smithy-log.md has FINISH    │ finish done     │ hand off to merge   │
 └─────────────────────────────┴─────────────────┴─────────────────────┘
 ```
+
+"Quench done" means `tasks.md` has no unchecked task **and** `quench-log.md` has a green entry (with gate results) for every task — that log is quench's own record that CI/gates passed, so smithy never needs to query CI. "Finish done" means `smithy-log.md` carries a `FINISH:` line (see the finish step), which is the only artifact the finish step is guaranteed to leave behind — README/CHANGELOG edits are not detectable on their own.
 
 ## Gates (halt + ask user)
 
@@ -72,6 +77,7 @@ Each halt prints:
 | `--start-from <stage>` | Begin at this stage, assume earlier ones done (or N/A) | "OVERRIDE: started from <stage>" |
 | `--resume` | Read disk state and continue from current stage | "RESUME: detected stage=<x>" |
 | `--dry-run` | Print plan; make no changes | (no log entry) |
+| (finish step) | Docs updated, Atlas run or skipped | "FINISH: docs updated · atlas <survey path \| skipped (atlas skill not available)>" |
 
 `smithy-log.md` lives at `specs/NNN-<slug>/smithy-log.md` and is append-only.
 
@@ -115,6 +121,9 @@ handing off to `superpowers:finishing-a-development-branch`, smithy runs one fin
    handover. If `atlas` is **not** available, **skip silently** — exactly like the kanban
    sync. Atlas is not vendored by Damascus; this step is a no-op wherever the consumer
    has not installed it.
+
+3. **Log it.** Append `FINISH: docs updated · atlas <survey path | skipped (atlas skill not available)>`
+   to `smithy-log.md`. This line is how a later `smithy --resume` knows the finish step ran.
 
 This step runs **after** the hone gate signoff and is the last thing smithy does before
 the merge handoff. It adds no board sync of its own (see the single-call-site rule above).

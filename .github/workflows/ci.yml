@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - name: bash syntax check
         run: bash -n install.sh tests/smoke.sh
@@ -29,13 +31,38 @@ jobs:
             [ -f "$l/SKILL.md" ] || { echo "::error::$l does not resolve to a skill"; exit 1; }
           done
 
-      - name: every stage skill and agent named in install.sh exists on disk
+      # The name lists come from install.sh itself (sourced, not executed), so a rename
+      # on disk or in the script cannot pass CI unless both sides agree.
+      - name: every skill, alias, agent and KEEP skill named in install.sh exists on disk
         run: |
-          for s in forge anvil temper quench hone smithy; do
+          # shellcheck disable=SC1091
+          source ./install.sh
+          for s in "${STAGE_SKILLS[@]}"; do
             [ -f "skills/$s/SKILL.md" ] || { echo "::error::skills/$s/SKILL.md missing"; exit 1; }
           done
-          for a in bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat; do
+          for pair in "${ALIASES[@]}"; do
+            alias="${pair%%:*}" stage="${pair#*:}"
+            [ -L "skills/$alias" ] || { echo "::error::skills/$alias is not a symlink"; exit 1; }
+            [ "$(readlink "skills/$alias")" = "$stage" ] || { echo "::error::skills/$alias should point at $stage"; exit 1; }
+          done
+          for a in "${AGENTS[@]}"; do
             [ -f "agents/$a.md" ] || { echo "::error::agents/$a.md missing"; exit 1; }
+          done
+          for s in "${SUPERPOWERS_KEEP[@]}"; do
+            [ -f "vendor/superpowers/skills/$s/SKILL.md" ] || { echo "::error::KEEP skill $s missing upstream — update SUPERPOWERS_KEEP"; exit 1; }
+          done
+          # every stage dir on disk is either a stage or an alias (no orphan skills)
+          for d in skills/*; do
+            name="$(basename "$d")"
+            printf '%s\n' "${STAGE_SKILLS[@]}" "${ALIASES[@]%%:*}" | grep -Fxq "$name" \
+              || { echo "::error::$d is not listed in install.sh"; exit 1; }
+          done
+          # every upstream skill has a policy: KEEP (linked) or DENY (named in README)
+          for d in vendor/superpowers/skills/*; do
+            name="$(basename "$d")"
+            printf '%s\n' "${SUPERPOWERS_KEEP[@]}" | grep -Fxq "$name" && continue
+            grep -Eq "^\| \`$name\` \| DENY \|" README.md \
+              || { echo "::error::upstream skill '$name' is neither KEEP in install.sh nor DENY in README.md — classify it"; exit 1; }
           done
 
       - name: frontmatter lint (name + description)
@@ -45,6 +72,36 @@ jobs:
             awk '/^---$/{c++; next} c==1 && /^name:/{n=1} c==1 && /^description:/{d=1} END{exit !(n && d)}' "$f" \
               || { echo "::error::$f frontmatter is missing name or description"; exit 1; }
           done
+
+      # Policy (CLAUDE.md): vendor pointers sit on upstream tags, and the README names
+      # the tag. Dependabot bumps to head commits fail here by design — re-pin to a tag.
+      - name: vendor submodules are pinned to upstream tags named in the README
+        run: |
+          for sub in vendor/superpowers vendor/spec-kit; do
+            git -C "$sub" fetch --quiet --tags origin
+            tag="$(git -C "$sub" describe --tags --exact-match HEAD 2>/dev/null)" \
+              || { echo "::error::$sub is at $(git -C "$sub" rev-parse --short HEAD), which is not an upstream tag"; exit 1; }
+            grep -Fq "| $tag |" README.md \
+              || { echo "::error::README.md vendored-submodules table does not list $sub at $tag"; exit 1; }
+            echo "$sub @ $tag"
+          done
+
+      - name: example artifact trail covers every smithy state
+        run: |
+          ex=examples/cart-discounts
+          for f in .prd/001_cart-discount-codes.md \
+                   specs/001-cart-discount-codes/spec.md specs/001-cart-discount-codes/plan.md \
+                   specs/001-cart-discount-codes/tasks.md specs/001-cart-discount-codes/review.md \
+                   specs/001-cart-discount-codes/quench-log.md specs/001-cart-discount-codes/code-review.md \
+                   specs/001-cart-discount-codes/smithy-log.md; do
+            [ -f "$ex/$f" ] || { echo "::error::$ex/$f missing"; exit 1; }
+          done
+          spec="$ex/specs/001-cart-discount-codes"
+          grep -q 'A++' "$spec/review.md"      || { echo "::error::review.md never reaches A++"; exit 1; }
+          grep -q 'A++' "$spec/code-review.md" || { echo "::error::code-review.md never reaches A++"; exit 1; }
+          grep -q '^FINISH:\|FINISH:' "$spec/smithy-log.md" || { echo "::error::smithy-log.md has no FINISH entry"; exit 1; }
+          grep -q '^- \[ \]' "$spec/tasks.md" && { echo "::error::tasks.md has unchecked tasks at pipeline end"; exit 1; }
+          echo "example trail complete"
 
   smoke:
     name: install/uninstall smoke test

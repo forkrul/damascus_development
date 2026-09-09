@@ -32,6 +32,21 @@ flowchart LR
 
 Every stage halts at its gate for user signoff. State lives in the disk artifacts, so `smithy` can resume any feature from any point. For one-line typos and hotfixes: skip the pipeline and just fix it — SPDD is for non-trivial work.
 
+### Which stage do I start at?
+
+Smithy decides from what is on disk, and you can too:
+
+| You have | Start with |
+|----------|------------|
+| a raw idea, nothing written | `forge` |
+| a PRD (all 7 REASONS sections filled) | `anvil` |
+| `spec.md` + `plan.md` + `tasks.md` | `temper` |
+| `review.md` ending in A++ | `quench` |
+| every task checked and green in `quench-log.md` | `hone` |
+| any of the above, unsure which | `smithy --resume` |
+
+[`examples/`](examples/) holds one feature's complete artifact trail through all five gates — the `.prd/` file, the spec triplet, both review logs, the quench log and the smithy log — so you can see what each state looks like before you produce it.
+
 ### Temper & hone: the adversarial review loops
 
 Both loops need **no external API**. Each round, three critic subagents with distinct lenses try to *refute* the artifact; a judge dedupes findings, computes an overlap signal (near-disjoint findings = more defects remain → rating capped), and assigns a rating. Blocking findings are applied, the round is logged, and the loop repeats. **A++ requires two consecutive rounds with zero blocking findings.**
@@ -48,6 +63,7 @@ Once `hone` reaches A++, `smithy` runs a final finish step before the merge hand
 - git ≥ 2.13 (submodules)
 - bash 3.2+ (`install.sh` runs on stock macOS bash)
 - a filesystem with symlink support
+- for `quench`'s shipped agents: a **Python / pytest / FastAPI** host, plus Playwright for `[UX]` tasks. The pipeline and its gates are stack-agnostic; on another stack quench dispatches general subagents under the same red-amber-green contract (see the dispatch table in `skills/quench/SKILL.md`)
 
 ## Install
 
@@ -67,7 +83,7 @@ This symlinks into your `.claude/`:
 - 5 quench agents (`bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`) → `.claude/agents/`
 - the KEEP-class [obra/superpowers](https://github.com/obra/superpowers) skills (see policy below) → `.claude/skills/`
 
-Re-run any time to refresh; the install prunes damascus-owned links whose names are no longer shipped. Other modes:
+Every link is relative, so a committed `.claude/` keeps working on every clone. Re-run any time to refresh; the install prunes damascus-owned links whose names are no longer shipped, and exits non-zero if any link could not be placed (a non-damascus file in the way, or an upstream skill that vanished). Other modes:
 
 ```bash
 ./vendor/damascus/install.sh --verify      # link health report; exit 1 if repair is needed
@@ -93,12 +109,14 @@ Breaking changes to skill contracts or `install.sh` behavior are called out in [
 
 | Submodule | Pin | Role |
 |-----------|-----|------|
-| [obra/superpowers](https://github.com/obra/superpowers) | v4.3.1 | process-discipline skills; KEEP-class linked at install |
-| [github/spec-kit](https://github.com/github/spec-kit) | v0.10.1 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
+| [obra/superpowers](https://github.com/obra/superpowers) | v6.3.0 | process-discipline skills; KEEP-class linked at install |
+| [github/spec-kit](https://github.com/github/spec-kit) | v1.0.5 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
+
+CI checks that each pointer sits exactly on an upstream tag and that this table names it, so a bump is always deliberate: check out the tag, update the row, note it in the changelog.
 
 ## Superpowers Policy (DENY / KEEP / CONDITIONAL)
 
-The pipeline stages are the canonical entrypoints. Four upstream skills overlap them and are **DENY** — not linked at install, and each stage skill carries redirect language:
+The pipeline stages are the canonical entrypoints. Six upstream skills are **DENY** — not linked at install — because they overlap a stage or route back into a skill that does; each stage skill carries redirect language. CI fails when an upstream skill has no row here and is not in `install.sh`'s KEEP list, so a new upstream skill must be classified before a bump merges.
 
 | Upstream skill | Policy | Use instead |
 |----------------|--------|-------------|
@@ -106,8 +124,10 @@ The pipeline stages are the canonical entrypoints. Four upstream skills overlap 
 | `writing-plans` | DENY | `anvil` — 3-file spec-kit-shaped artifact set |
 | `executing-plans` | DENY | `quench` (or `smithy` cross-stage) — BDD-first, red-amber-green |
 | `requesting-code-review` | DENY | `hone` — three-lens adversarial diff review with a logged A++ trail |
+| `using-superpowers` | DENY | `smithy` — the upstream router sends "let's build X" to `brainstorming`; smithy is this pipeline's entrypoint |
+| `subagent-driven-development` | DENY | `quench` — an execution loop that dispatches `requesting-code-review`'s reviewer; quench + hone replace it |
 | `test-driven-development` | CONDITIONAL | linked; quench **overrides** its red-green cycle with red-amber-green |
-| remaining 9 skills | KEEP | linked as-is (`systematic-debugging`, `receiving-code-review`, `finishing-a-development-branch`, …) |
+| remaining 7 skills | KEEP | linked as-is (`systematic-debugging`, `dispatching-parallel-agents`, `verification-before-completion`, `receiving-code-review`, `finishing-a-development-branch`, `using-git-worktrees`, `writing-skills`) |
 
 **Red-amber-green:** standard TDD goes red → green. Quench inserts **amber** — the test must fail *for the right reason* (the assertion you care about, not an import error) before any implementation is written. Amber is the moment you trust the test — and the moment it **freezes**: from amber on, a test changes only after the spec changes first, and the implementing agent never edits tests at all. At green, quench runs **hardening gates**: mutation testing scoped to the diff (a surviving mutant = a weak test; line-coverage % is reported, never gated), the host repo's static/type/security checks, an FR ↔ test traceability sweep (every requirement has a verifying test), and a stable-green rule (new tests pass 3× in randomized order; a flake is red, not a retry). Every red/amber/green transition, gate result, and waiver lands in `specs/NNN-<slug>/quench-log.md`.
 
@@ -117,6 +137,7 @@ The pipeline stages are the canonical entrypoints. Four upstream skills overlap 
 skills/{forge,anvil,temper,quench,hone,smithy}/SKILL.md   the six skills (5 stages + orchestrator)
 skills/<alias> -> <stage>                                 invocation aliases
 agents/*.md                                               quench's dispatch agents
+examples/cart-discounts/                                  one feature's full artifact trail, gate by gate
 vendor/superpowers                                        pinned submodule
 vendor/spec-kit                                           pinned submodule
 install.sh                                                consumer-side symlinker

@@ -87,10 +87,10 @@ vendor/spec-kit/templates/plan-template.md   → basis for plan.md
 vendor/spec-kit/templates/tasks-template.md  → basis for tasks.md
 ```
 
-The templates live in the damascus checkout. If the skill is installed as a symlink, resolve the real path first:
+The templates live in the damascus checkout. If the skill is installed as a symlink, resolve the real path first (portable — no `readlink -f`, which stock macOS lacks):
 
 ```bash
-DAMASCUS="$(dirname "$(readlink -f .claude/skills/anvil)")/../.."
+DAMASCUS="$(cd "$(cd .claude/skills/anvil && pwd -P)/../.." && pwd)"
 ls "$DAMASCUS/vendor/spec-kit/templates/"
 ```
 
