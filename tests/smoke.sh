@@ -48,7 +48,8 @@ done
 
 # every damascus-owned link is relative: a committed .claude/ must survive a fresh clone
 for l in .claude/skills/* .claude/agents/*.md; do
-  [ -L "$l" ] && [ "$l" != .claude/skills/foreign-link ] || continue
+  [ -L "$l" ] || continue
+  [ "$l" != .claude/skills/foreign-link ] || continue # the planted foreign fixture is absolute by design
   case "$(readlink "$l")" in
     /*) fail "$l is an absolute symlink" ;;
   esac
