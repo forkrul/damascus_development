@@ -1,0 +1,36 @@
+name: Release
+
+# Pushing a vX.Y.Z tag publishes a GitHub Release whose body is that version's
+# CHANGELOG.md section, verbatim (the ritual in CLAUDE.md). The tag must match a
+# `## [X.Y.Z] - YYYY-MM-DD` heading; a tag with no changelog section fails here
+# instead of shipping empty notes.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: extract this version's changelog section
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section — move [Unreleased] under it first (see CLAUDE.md)"
+            exit 1
+          fi
+          cat release-notes.md
+
+      - name: create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

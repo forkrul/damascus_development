@@ -19,9 +19,10 @@ Current gaps (as of this writing): no LICENSE, no `.github/` (zero CI), no tags 
 releases, install.sh smoke-tested only by hand, submodule bumps are manual and
 unprompted, and `install.sh` hard-fails on stock macOS bash 3.2 (`declare -A`).
 
-> **Status:** phases 0–4 are implemented in-repo (checked boxes below). Two items
+> **Status:** phases 0–5 are implemented in-repo (checked boxes below). Two items
 > remain manual, GitHub-side, after this lands on `master`:
-> **(1)** cut `v0.1.0` — tag + Release per the ritual now in CLAUDE.md;
+> **(1)** push the `v0.1.0` tag — the changelog section already exists and the
+> `Release` workflow publishes the GitHub Release from it;
 > **(2)** enable branch protection on `master` (require PR + green CI, no
 > force-push, no required approver count) in repo Settings → Branches.
 
@@ -77,13 +78,14 @@ skipped changelog entry fails a test PR.
 Consumers add damascus as a submodule — today they can only pin an opaque SHA on
 `master`. Production consumers need stable, named versions and an upgrade story.
 
-- [ ] Tag **`v0.1.0`** and cut the first GitHub Release from the `[Unreleased]`
+- [x] Tag **`v0.1.0`** and cut the first GitHub Release from the `[Unreleased]`
       changelog section; adopt semver (breaking skill-contract or install.sh
-      behavior changes = major once past 1.0).
+      behavior changes = major once past 1.0). *(Changelog section cut and a
+      tag-triggered release workflow added; the tag push itself is the one
+      remaining manual step.)*
 - [x] Document the release ritual in CLAUDE.md (move `[Unreleased]` → version
-      heading, tag, `gh release create`) — small enough to stay manual, but a
-      release-drafter or tag-triggered workflow can generate the release notes
-      from the changelog.
+      heading, tag) — `.github/workflows/release.yml` generates the release
+      notes from the changelog on tag push.
 - [x] README install snippet: pin the tag —
       `git -C vendor/damascus checkout v0.1.0` — and add an **Upgrading** section
       (checkout new tag → commit pointer → re-run `install.sh`; the install is
@@ -132,7 +134,8 @@ breakage. Automate the noticing so nothing depends on the founder remembering.
 - [x] Bump policy note in CLAUDE.md: only merge bumps that land on an upstream
       *tag*; re-check the DENY/KEEP/CONDITIONAL table when superpowers adds or
       renames skills (a new upstream skill overlapping a stage should become
-      DENY).
+      DENY). CI enforces both: a pointer off a tag, a README table that does
+      not name the tag, or an unclassified upstream skill fails the build.
 - [x] Minimal `.github/ISSUE_TEMPLATE/bug.md` asking for `install.sh --verify`
       output, OS, and bash version — makes drive-by reports actionable without
       a round-trip.
@@ -142,12 +145,11 @@ safe (or shows exactly what broke) with zero founder-initiated effort.
 
 ## Phase 5 — Adoption polish *(optional; only after 0–4)*
 
-- [ ] An `examples/` walkthrough or short screen capture: one feature taken
-      forge → anvil → temper → quench in a toy repo, with the on-disk artifacts
-      (`.prd/`, `specs/NNN-*/`) shown at each gate — the README describes the
-      pipeline, but seeing the artifact trail is what converts.
-- [ ] A "which stage do I start at?" decision note for partially-specified work
-      (smithy resumes from artifacts; make that discoverable).
+- [x] An `examples/` walkthrough: one feature taken forge → anvil → temper →
+      quench → hone, with the on-disk artifacts (`.prd/`, `specs/NNN-*/`) shown
+      at each gate (`examples/cart-discounts/`; CI checks the trail is complete).
+- [x] A "which stage do I start at?" decision note for partially-specified work
+      (README section + `examples/README.md`).
 - [ ] Optionally publish to a skills marketplace/registry if one fits; the
       submodule + symlink model already works everywhere Claude Code runs.
 

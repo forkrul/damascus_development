@@ -1,8 +1,10 @@
 version: 2
 updates:
-  # vendor/superpowers and vendor/spec-kit — the CI smoke test validates each
-  # bump (KEEP-class linking fails if upstream renames or removes a skill).
-  # Policy (see CLAUDE.md): only merge bumps that land on an upstream tag.
+  # vendor/superpowers and vendor/spec-kit. Dependabot targets head commits, and CI
+  # requires each pointer to sit on an upstream tag named in the README, so these PRs
+  # fail by design — treat them as "a new upstream release may exist", close them, and
+  # bump to the tag by hand (policy in CLAUDE.md). The smoke test and the KEEP/DENY
+  # classification check then validate the deliberate bump.
   - package-ecosystem: gitsubmodule
     directory: /
     schedule:

@@ -122,17 +122,17 @@ The log is the pipeline's flight recorder: it proves amber happened (the failure
 
 ## Agent Dispatch Table
 
-Quench composes with the agents that ship in this repo's `agents/` directory. Dispatch as follows:
+Quench composes with the agents that ship in this repo's `agents/` directory. The shipped agents are shaped for a **Python / pytest / FastAPI** host with Playwright for the browser; the *cycle* is stack-agnostic. Dispatch as follows:
 
 | Task type | Agent |
 |-----------|-------|
 | Gherkin scenarios | `bdd-scenario-writer` |
-| Failing pytest tests | `tdd-test-generator` |
+| Failing unit/integration tests | `tdd-test-generator` (pytest); another stack → a test-writer subagent bound by the same contract: owns red and amber, records amber's failure message, never writes implementation |
 | Playwright `.spec.ts` | `playwright-e2e-tester` |
-| Implementation (FastAPI) | `fastapi-implementer` |
+| Implementation | `fastapi-implementer` (FastAPI); another stack → an implementer subagent bound by the same contract: enters at amber, minimal code to green, never edits tests |
 | Test coverage / mocks | `labcoat` |
 
-Don't dispatch agents you don't have a task for.
+For a non-Python host, dispatch a general subagent with the corresponding agent file's contract sections (cycle, freeze, gates) pasted into its prompt — the contract is what quench depends on, not the framework. Don't dispatch agents you don't have a task for.
 
 ## Don't do this
 
