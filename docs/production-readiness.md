@@ -21,8 +21,9 @@ unprompted, and `install.sh` hard-fails on stock macOS bash 3.2 (`declare -A`).
 
 > **Status:** phases 0–5 are implemented in-repo (checked boxes below). Two items
 > remain manual, GitHub-side, after this lands on `master`:
-> **(1)** push the `v0.1.0` tag — the changelog section already exists and the
-> `Release` workflow publishes the GitHub Release from it;
+> **(1)** cut `v0.1.0`: one PR that moves `[Unreleased]` under `## [0.1.0] - <date>`,
+> then push the tag — the `Release` workflow publishes the GitHub Release from
+> that section;
 > **(2)** enable branch protection on `master` (require PR + green CI, no
 > force-push, no required approver count) in repo Settings → Branches.
 
@@ -80,9 +81,9 @@ Consumers add damascus as a submodule — today they can only pin an opaque SHA 
 
 - [x] Tag **`v0.1.0`** and cut the first GitHub Release from the `[Unreleased]`
       changelog section; adopt semver (breaking skill-contract or install.sh
-      behavior changes = major once past 1.0). *(Changelog section cut and a
-      tag-triggered release workflow added; the tag push itself is the one
-      remaining manual step.)*
+      behavior changes = major once past 1.0). *(Tag-triggered release workflow
+      added; the version-bump PR and the tag push are the remaining manual
+      steps.)*
 - [x] Document the release ritual in CLAUDE.md (move `[Unreleased]` → version
       heading, tag) — `.github/workflows/release.yml` generates the release
       notes from the changelog on tag push.
