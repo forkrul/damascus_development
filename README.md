@@ -110,7 +110,7 @@ Breaking changes to skill contracts or `install.sh` behavior are called out in [
 | Submodule | Pin | Role |
 |-----------|-----|------|
 | [obra/superpowers](https://github.com/obra/superpowers) | v6.3.0 | process-discipline skills; KEEP-class linked at install |
-| [github/spec-kit](https://github.com/github/spec-kit) | v1.0.5 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
+| [github/spec-kit](https://github.com/github/spec-kit) | v1.0.6 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
 
 CI checks that each pointer sits exactly on an upstream tag and that this table names it, so a bump is always deliberate: check out the tag, update the row, note it in the changelog.
 
