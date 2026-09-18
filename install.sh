@@ -98,10 +98,30 @@ owned_by_damascus() { # true if existing path is a symlink resolving into damasc
   return 1
 }
 
-expected_skill_names() { # every name damascus ships into .claude/skills/
-  local s pair
-  for s in "${STAGE_SKILLS[@]}" "${SUPERPOWERS_KEEP[@]}"; do printf '%s\n' "$s"; done
-  for pair in "${ALIASES[@]}"; do printf '%s\n' "${pair%%:*}"; done
+# Membership is answered in-process, never through a pipe. `... | grep -Fxq`
+# matches correctly but exits on the first hit, so every name emitted after it
+# writes into a closed pipe; under `set -o pipefail` that EPIPE becomes the
+# pipeline's exit status, and a name damascus DOES ship reads as one it does
+# not. Only a match that is not the last line emitted can trigger it, and only
+# when the producer is slower than grep — which is why it surfaced as an
+# intermittent macOS-only "stale damascus-owned link" against a healthy install.
+is_expected_skill() { # true if $1 is a name damascus ships into .claude/skills/
+  local name=$1 s pair
+  for s in "${STAGE_SKILLS[@]}" "${SUPERPOWERS_KEEP[@]}"; do
+    if [ "$s" = "$name" ]; then return 0; fi
+  done
+  for pair in "${ALIASES[@]}"; do
+    if [ "${pair%%:*}" = "$name" ]; then return 0; fi
+  done
+  return 1
+}
+
+is_expected_agent() { # true if $1 is a name damascus ships into .claude/agents/
+  local name=$1 a
+  for a in "${AGENTS[@]}"; do
+    if [ "$a" = "$name" ]; then return 0; fi
+  done
+  return 1
 }
 
 link() { # link <target> <linkpath>
@@ -129,7 +149,7 @@ prune() { # remove damascus-owned links whose names are no longer shipped
   for p in "$SKILLS_DIR"/*; do
     [ -L "$p" ] || continue
     name="$(basename "$p")"
-    if owned_by_damascus "$p" && ! expected_skill_names | grep -Fxq "$name"; then
+    if owned_by_damascus "$p" && ! is_expected_skill "$name"; then
       run rm "$p"
       say_done "pruned stale link $name"
     fi
@@ -137,7 +157,7 @@ prune() { # remove damascus-owned links whose names are no longer shipped
   for p in "$AGENTS_DIR"/*.md; do
     [ -L "$p" ] || continue
     name="$(basename "$p" .md)"
-    if owned_by_damascus "$p" && ! printf '%s\n' "${AGENTS[@]}" | grep -Fxq "$name"; then
+    if owned_by_damascus "$p" && ! is_expected_agent "$name"; then
       run rm "$p"
       say_done "pruned stale link $(basename "$p")"
     fi
@@ -262,8 +282,8 @@ verify() { # report link health; include the env facts a bug report needs
   for p in "$SKILLS_DIR"/* "$AGENTS_DIR"/*.md; do
     name="$(basename "$p" .md)"
     if owned_by_damascus "$p" \
-      && ! expected_skill_names | grep -Fxq "$name" \
-      && ! printf '%s\n' "${AGENTS[@]}" | grep -Fxq "$name"; then
+      && ! is_expected_skill "$name" \
+      && ! is_expected_agent "$name"; then
       err "stale damascus-owned link: $p"
       PROBLEMS=$((PROBLEMS + 1))
     fi
