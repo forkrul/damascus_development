@@ -150,7 +150,7 @@ Forge is **complete** when ALL of the following hold:
 - [ ] PRD file is committed (or at least staged) — you are not editing in a void
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 
-When complete, say:
+When complete, lead with **Needs your call** — Open Questions still unticked, assumptions the user green-lit rather than confirmed — or "nothing", then say:
 
 > "PRD complete and saved to `.prd/NNN_<feature-slug>.md`. Next stage: **anvil** (decompose this PRD into spec/plan/tasks). Run it now? (y/N)"
 

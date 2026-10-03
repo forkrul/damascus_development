@@ -30,7 +30,7 @@ flowchart LR
 
 **Golden Rule (Fowler):** when reality diverges from the prompt, fix the prompt before the code.
 
-Every stage halts at its gate for user signoff. State lives in the disk artifacts, so `smithy` can resume any feature from any point. For one-line typos and hotfixes: skip the pipeline and just fix it — SPDD is for non-trivial work.
+Every stage halts at its gate for user signoff, leading with what needs your decision (waivers, rejected or open findings, unconfirmed assumptions); between gates it doesn't stop to report or offer to continue. State lives in the disk artifacts, so `smithy` can resume any feature from any point. For one-line typos and hotfixes: skip the pipeline and just fix it — SPDD is for non-trivial work.
 
 ### Which stage do I start at?
 
@@ -49,10 +49,10 @@ Smithy decides from what is on disk, and you can too:
 
 ### Temper & hone: the adversarial review loops
 
-Both loops need **no external API**. Each round, three critic subagents with distinct lenses try to *refute* the artifact; a judge dedupes findings, computes an overlap signal (near-disjoint findings = more defects remain → rating capped), and assigns a rating. Blocking findings are applied, the round is logged, and the loop repeats. **A++ requires two consecutive rounds with zero blocking findings.**
+Both loops need **no external API**. Each round, three critic subagents with distinct lenses try to *refute* the artifact; a judge dedupes findings, computes an overlap signal (near-disjoint findings = more defects remain → rating capped), and assigns a rating. Blocking findings are applied, the round is logged, and the loop repeats. A suspicion a critic can't show is logged UNCONFIRMED and gets a targeted check in the next round; a round that carries one forward isn't clean. **A++ requires two consecutive rounds with zero blocking findings.**
 
 - **Temper** reviews the *spec triplet* (lenses: completeness, feasibility, testability; max 5 rounds). Each critic runs an active procedure — re-deriving sections, tracing a data flow, drafting per-FR test skeletons — and attaches the artifact; opinions without evidence are discarded. Trail: `specs/NNN-<slug>/review.md`, append-only.
-- **Hone** reviews the *implementation diff* the same way (lenses: spec-conformance, security, simplicity; max 3 rounds), task by task in **≤400-changed-line units**, after quench's tests and gates are green. Fixes never touch tests. Trail: `specs/NNN-<slug>/code-review.md`, append-only.
+- **Hone** reviews the *implementation diff* the same way (lenses: spec-conformance, security, simplicity; max 3 rounds), task by task in **≤400-changed-line units**, after quench's tests and gates are green. Every blocking finding comes with a repro; fixes never touch tests. Trail: `specs/NNN-<slug>/code-review.md`, append-only.
 
 ### Finish step: docs + optional Atlas survey
 

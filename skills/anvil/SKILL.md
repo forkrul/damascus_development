@@ -49,7 +49,7 @@ A directory `specs/NNN-<feature-slug>/` containing:
 
 - `spec.md` — user stories, functional requirements (`FR-NNN`), success criteria (`SC-NNN`), assumptions, dependencies
 - `plan.md` — REASONS-Canvas-structured: one section per REASONS letter, plus a "Phases" section that lists ordered phases of work
-- `tasks.md` — task list with format `[ID] [P?] [Story] [Tag?] Description` (P = parallel-safe, Story = which user story it belongs to; optional tags: `[UX]` browser-facing → Playwright in quench, `[REFACTOR]` changes existing behavior → characterization tests first, `[HARD]` genuinely tricky → quench's sample-and-select). Each task has: file paths to touch, FR(s) it satisfies, gate criteria.
+- `tasks.md` — task list with format `[ID] [P?] [Story] [Tag?] Description` (P = parallel-safe: touches no file another task in its phase touches and needs no other unchecked task in that phase — quench may run these side by side; Story = which user story it belongs to; optional tags: `[UX]` browser-facing → Playwright in quench, `[REFACTOR]` changes existing behavior → characterization tests first, `[HARD]` genuinely tricky → quench's sample-and-select). Each task has: file paths to touch, FR(s) it satisfies, gate criteria.
 
 **Task sizing budget:** cut every task so its implementation diff stays under **~400 changed lines** — the largest unit `hone`'s reviewers (or any reviewer) can inspect reliably. A task you can't describe in one sentence, or that touches more than a handful of files, gets split. Quench logs actual diff sizes per task; oversized tasks come back as anvil feedback.
 
@@ -130,7 +130,7 @@ Anvil is **complete** when:
 - [ ] All artifacts are committed (or at least staged)
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 
-When complete, say:
+When complete, lead with **Needs your call** — PRD edits made while decomposing (Golden Rule), entries in spec.md's Assumptions — or "nothing", then say:
 
 > "Spec/plan/tasks complete under `specs/NNN-<slug>/`. Next stage: **temper** (adversarial review until A++ rating). Run it now? (y/N)"
 

@@ -51,7 +51,7 @@ Dispatch **3 critic subagents in parallel**, each with a distinct lens, an **act
 | **Feasibility** | architecture & ordering | Trace one full data flow (input → processing → storage → output) through the plan's phases; every step needing an unstated decision = finding | plan steps that can't work as written, hidden dependencies, phase-ordering errors, handwaved migrations or integrations |
 | **Testability** | decomposition & verification | Draft a one-line test skeleton per FR from the spec text *alone*; every FR whose skeleton can't be written without asking the author = finding | tasks not independently verifiable, missing file paths, FRs unmapped to tasks, BDD scenarios that could never fail, scope creep |
 
-Each critic receives the full triplet and returns findings classified as **BLOCKING** (a competent implementer would have to ask the author) or **NIT** (cosmetic). Critics must attempt refutation; "looks good" with no findings requires the critic to attach its procedure artifact and state what it tried and failed to break. Opinions without the artifact are discarded by the judge.
+Each critic receives the full triplet and returns findings classified as **BLOCKING** (a competent implementer would have to ask the author — the critic writes down that question) or **NIT** (cosmetic), plus anything it suspects but couldn't confirm as **UNCONFIRMED**, saying where it looked and what it couldn't check. Critics must attempt refutation; "looks good" with no findings requires the critic to attach its procedure artifact and state what it tried and failed to break. Opinions without the artifact are discarded by the judge.
 
 The procedures differ per critic **on purpose**: same-model critics correlate, so varying *what each one does* with the artifact buys more independence than varying the adjective in its prompt.
 
@@ -62,6 +62,8 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
 - Discards any finding whose critic did not attach its procedure artifact
+- Downgrades to NIT any BLOCKING finding that names no question an implementer would have to ask
+- Settles each UNCONFIRMED: confirms it (BLOCKING or NIT), kills it when the evidence contradicts it, carries it into the next round as a targeted check for that lens, or — when the session cannot check it at all (it needs data or access the session doesn't have) — logs it as open
 - Classifies survivors as BLOCKING or NIT
 - Computes the **overlap signal** (capture-recapture logic): D = distinct findings after dedupe, m = findings raised independently by ≥2 critics. If D ≥ 4 and m/D < 25%, the critics are sampling a defect pool they haven't exhausted — near-disjoint finding sets mean more defects remain undiscovered. Cap the round's rating at **B+** regardless of blocking count
 - Assigns the round's rating on the ladder below
@@ -70,7 +72,7 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 
 - Apply every surviving BLOCKING finding to `spec.md`/`plan.md`/`tasks.md` (or explicitly reject it in the log with reasoning)
 - Append the round to `review.md`
-- If not converged, run the next round
+- If not converged, run the next round straight away. A round boundary is not a gate: the only stops are A++, the round cap, and a finding that sends work back to `anvil` or `forge`
 
 ## Critic Prompt Template
 
@@ -87,6 +89,9 @@ a single question. Find every place that bar fails.
 Return:
 - Your procedure artifact
 - Findings, each: [BLOCKING|NIT] <artifact>:<section> — <specific issue> — <what would fix it>
+  A BLOCKING finding also quotes the question an implementer would have to ask the author.
+- What you suspect but couldn't confirm, each: [UNCONFIRMED] <artifact>:<section> —
+  <suspected issue> — <where you looked and what you couldn't check>
 - If you found nothing: the artifact plus the 3 attack angles you tried and why each failed.
 
 --- spec.md ---
@@ -104,7 +109,7 @@ Return:
 
 ## Round 1 — YYYY-MM-DD HH:MM
 - Critics: completeness, feasibility, testability
-- Blocking: 4  Nits: 7 (5 killed by judge)
+- Blocking: 4  Unconfirmed: 1 (carried)  Nits: 7 (5 killed by judge)
 - Overlap: 2/6 (33% — no cap)
 - Rating: B+
 - Findings applied:
@@ -114,11 +119,12 @@ Return:
   1. feasibility#3 — proposed YAGNI abstraction; rejected, out of scope
 
 ## Round 2 — …
-- Blocking: 0  Nits: 2 (killed)
+- Carried from round 1: feasibility UNCONFIRMED (does the queue client support batching?) — targeted check: client docs + plan.md Dependencies → supported; killed
+- Blocking: 0  Unconfirmed: 0  Nits: 2 (killed)
 - Rating: A+  (clean pass 1 of 2)
 
 ## Round 3 — …
-- Blocking: 0  Nits: 0
+- Blocking: 0  Unconfirmed: 0  Nits: 0
 - Rating: A++  ← exit (clean pass 2 of 2)
 ```
 
@@ -138,6 +144,8 @@ Return:
 ## Convergence Rule
 
 **A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean round earns at most A+ — the second consecutive clean round confirms the first wasn't luck and upgrades to A++. This is loop-until-dry, not loop-until-lucky.
+
+**A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's result in the log). One logged as open does not block convergence; the gate lists it under Needs your call.
 
 The overlap signal feeds this rule: a round capped at B+ for low overlap can never count as clean — when the critics' finding sets are near-disjoint, the pool of undiscovered defects is larger than the pool they surfaced, whatever the blocking count says.
 
@@ -169,7 +177,7 @@ Temper is **complete** when:
 - [ ] All applied edits are committed (or at least staged)
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 
-When complete, say:
+When complete, lead with **Needs your call** — findings rejected in the log, UNCONFIRMED findings logged as open — or "nothing", then say:
 
 > "Temper complete: A++ reached after N round(s). Next stage: **quench** (BDD/TDD execution). Run it now? (y/N)"
 

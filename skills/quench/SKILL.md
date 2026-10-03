@@ -50,13 +50,15 @@ Standard TDD says **red → green → refactor**. Quench inserts **amber** betwe
 | Phase | Test status | What it means | What you do |
 |-------|-------------|---------------|-------------|
 | **Red** | Fails | Test fails, possibly for the wrong reason (syntax error, import missing, NameError) | Make the test *exist* and run; don't write impl yet |
-| **Amber** | Fails for the right reason | Test fails with the **assertion you actually care about** (e.g. `AssertionError: expected 42, got None`), not because of plumbing | This is the proof that the test is real. Stop here and confirm before going green |
+| **Amber** | Fails for the right reason | Test fails with the **assertion you actually care about** (e.g. `AssertionError: expected 42, got None`), not because of plumbing | This is the proof that the test is real. Check the failure message yourself and log it before any implementation exists |
 | **Green** | Passes | Test passes via minimal implementation | Write only enough code to flip amber → green |
 | **Refactor** | Passes | Code cleaned up, tests still pass | Optional but encouraged |
 
 **Why amber matters**: Most "TDD" sessions skip from red to green and never confirm the test would actually fail if the impl were wrong. Amber is the moment you trust the test.
 
 **Amber freezes the test.** From amber onward, a test changes only after `spec.md`/`tasks.md` change first (Golden Rule), with the exception noted in the quench log. Authorship stays separated: test agents (`tdd-test-generator`, `labcoat`) never write implementation; the implementer (`fastapi-implementer`) never edits tests. If the host repo has a drift-detection hook, point it at `tests/**` as well as `src/**` — a test edit without a spec edit is drift.
+
+Amber is a checkpoint you verify, not a pause for the user. Run task after task without stopping to report: put each transition's status note in the same message as your next action, and halt only at quench's gate, a refusal, a Golden Rule spec edit, or before anything destructive (deleting data, force-pushing, rewriting history).
 
 Announce each red/amber/green transition as you make it **and append it to the quench log** (timestamps, amber's failure message, diff stats at green — format below). If the host repo provides a phase-signalling helper (e.g. a tmux status-bar script), call it at each transition; skip silently if absent — it never gates anything.
 
@@ -87,6 +89,15 @@ Beyond `[P]` and `[UX]`, `tasks.md` may carry two tags anvil assigns:
 
 - **`[REFACTOR]`** — the task changes existing behavior-bearing code. Before touching it, write **characterization (golden-master) tests** pinning current observable behavior; they play amber's role for code that already exists. Only then run red-amber-green for the new behavior.
 - **`[HARD]`** — genuinely tricky logic. Use **sample-and-select**: dispatch 2–3 independent implementation attempts (separate subagents, no shared context), run the frozen tests + hardening gates against each, keep the winner. Record the selection and reasoning in the quench log.
+
+## Parallel Tasks (`[P]`)
+
+Inside one task the cycle is sequential: test agent, then implementer. Across tasks, the `[P]` tasks of the current phase whose prerequisites are green may run side by side:
+
+1. Give each `[P]` task its own git worktree (`superpowers:using-git-worktrees`, KEEP) and its own agents running the full cycle — red, amber, green, gates.
+2. Check each result before accepting it, as for any agent report: re-run its amber and its stable-green yourself in its worktree.
+3. Merge finished tasks onto the feature branch **one at a time**, re-running the full suite (stable-green 3×) and the static gates after each merge. Tick the task in `tasks.md` and write its quench-log entry on the feature branch at merge, never in the worktree (both files would conflict on every merge), noting `parallel with T00x`, so the log stays in merge order.
+4. A merge conflict, or a suite that goes red only after a merge, means the `[P]` tag was wrong: log it as anvil feedback and redo that task sequentially on the merged branch.
 
 ## Green Means Stable-Green
 
@@ -134,14 +145,16 @@ Quench composes with the agents that ship in this repo's `agents/` directory. Th
 
 For a non-Python host, dispatch a general subagent with the corresponding agent file's contract sections (cycle, freeze, gates) pasted into its prompt — the contract is what quench depends on, not the framework. Don't dispatch agents you don't have a task for.
 
+**An agent's report is a claim, not evidence.** When a test agent reports amber, re-run its tests yourself and log *your* failure message; when the implementer reports green, re-run the suite and the stable-green 3× yourself before the gates. A report that doesn't reproduce goes back to that agent with your output.
+
 ## Don't do this
 
 - **Don't skip the amber phase.** It's the whole point. Going red → green hides broken tests; you have no proof the test would catch a real bug.
-- **Don't write the test and the implementation in the same edit.** Two edits, two test runs, two confirmations. This is non-negotiable.
+- **Don't write the test and the implementation in the same edit.** Two edits, two test runs, two logged results. This is non-negotiable.
 - **Don't refactor across red/amber/green boundaries.** Refactor only when green. Refactoring during red conflates concerns and obscures what's actually broken.
 - **Don't add tests beyond what tasks.md specifies.** Speculative test coverage is bloat. If you find a gap, edit `tasks.md` first (Golden Rule), then add the test.
 - **Don't write implementation code without a failing test in front of you.** No exceptions. If you find yourself about to "just add this small thing", stop and write the test first.
-- **Don't dispatch all the agents at once.** Quench is sequential per task, not parallel. Parallel agent dispatch is for `dispatching-parallel-agents` (an upstream skill), not quench.
+- **Don't dispatch all the agents at once.** The cycle inside a task is sequential, and only `[P]` tasks run side by side, each in its own worktree and merged one at a time (see Parallel Tasks). Never run a task in parallel with a task anvil didn't tag `[P]`.
 - **Don't mark a task complete until BDD + unit tests + (Playwright, if UX) all pass.** Partial green is not green.
 - **Don't invoke `superpowers:executing-plans`.** It is DENY-listed. Use quench's BDD-first / red-amber-green discipline.
 - **Don't silently downgrade red-amber-green to red-green.** If you find yourself doing it, you've slipped into upstream `test-driven-development` mode. Re-read this skill's Cycle table.
@@ -167,7 +180,7 @@ Quench is **complete** when:
 - [ ] All code + tests are committed
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent. (Any post-merge sync belongs to the host repo's merge tooling, not to quench.)
 
-When complete, say:
+When complete, lead with **Needs your call** — mutation waivers, freeze exceptions, sample-and-select picks, gates recorded as not run, tasks logged as anvil feedback — or "nothing", then say:
 
 > "Quench complete: N tasks executed, M tests passing, all FRs verified, CI green. Next stage: **hone** (adversarial diff review to A++). Run it now? (y/N)"
 
@@ -182,7 +195,7 @@ Inside quench, the Golden Rule has a specific form: **when a failing test reveal
 - Reads the A++-tempered triplet from `temper`
 - Composes with: `bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat` (shipped in `agents/`)
 - Hands off to `hone` (adversarial diff review); hone hands off to `superpowers:finishing-a-development-branch` (KEEP)
-- Composes with `superpowers:systematic-debugging` (KEEP) when a test fails ambiguously
+- Composes with `superpowers:systematic-debugging` (KEEP) when a test fails ambiguously, and `superpowers:using-git-worktrees` (KEEP) for `[P]` tasks
 
 ## References
 

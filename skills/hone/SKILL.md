@@ -76,6 +76,9 @@ procedure**, and an explicit mandate to **refute** the diff, not affirm it:
 
 Each critic receives the review unit's diff plus the spec triplet, and returns findings
 as **BLOCKING** (would be wrong to merge) or **NIT** (cosmetic), each with `file:line`.
+A BLOCKING finding must show how it fails — a failing test, a repro input, or a command
+and its output. A suspicion the critic couldn't show is **UNCONFIRMED**, with where it
+looked and what it couldn't check.
 "Looks good" with no findings requires the critic to show its procedure's artifact and
 state what it tried and failed to break. Opinions without the artifact are discarded.
 
@@ -86,6 +89,11 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
 - Discards any finding whose critic did not attach its procedure artifact
+- Treats a BLOCKING finding with no way to show it fails as UNCONFIRMED
+- Settles each UNCONFIRMED: confirms it (BLOCKING or NIT), kills it when the evidence
+  contradicts it, carries it into the next round as a targeted check for that lens, or —
+  when the session cannot check it at all (it needs data or access the session doesn't
+  have) — logs it as open
 - Computes the **overlap signal**: D = distinct findings after dedupe, m = findings
   raised independently by ≥2 critics. If D ≥ 4 and m/D < 25%, the panel is sampling a
   larger defect pool than it is exhausting — cap the round's rating at **B+** regardless
@@ -95,7 +103,7 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 ### 3. Cool — apply and log
 
 - Apply every surviving BLOCKING finding as a code edit (or explicitly reject it in the
-  log with reasoning)
+  log with reasoning). The critic's repro is the seed for the test that guards the fix
 - **After each fix, the full test suite must be green again.** The test freeze holds
   through hone: a fix never edits a test unless `spec.md`/`tasks.md` changed first
 - **Every fix must be shown to fail without itself.** Revert the fix, watch the guarding
@@ -103,7 +111,9 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
   verified — only asserted — and does not count as applied. Record the check in the log.
 - A finding that reveals a *spec* gap is not fixed here — Golden Rule: halt and route
   back through smithy to `anvil`/`temper`
-- Append the round to `code-review.md`; if not converged, run the next round
+- Append the round to `code-review.md`; if not converged, run the next round straight
+  away. A round boundary is not a gate: the only stops are A++, the round cap, and a
+  finding that routes back upstream
 
 **The repair is the least-reviewed code in the pipeline, and it is written under the
 worst conditions.** It is authored at the end of a session, against a defect just
@@ -140,6 +150,10 @@ that bar fails.
 
 Return:
 - Findings, each: [BLOCKING|NIT] <file>:<line> — <specific issue> — <what would fix it>
+  A BLOCKING finding also gives how to show it fails: a failing test, a repro input,
+  or a command and its output.
+- What you suspect but couldn't show, each: [UNCONFIRMED] <file>:<line> —
+  <suspected issue> — <where you looked and what you couldn't check>
 - If you found nothing: your procedure artifact plus the 3 attack angles you
   tried and why each failed.
 
@@ -166,6 +180,11 @@ Return:
 **A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean
 round earns at most A+; the second confirms the first wasn't luck. A round capped by the
 overlap signal cannot count as clean — disjoint findings mean undiscovered defects remain.
+
+**A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted
+check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's output
+in the log). One logged as open does not block convergence; the gate lists it under Needs
+your call.
 
 **A round is clean only if the previous round's fixes were in the diff its critics
 reviewed.** Zero blocking findings against code nobody looked at is not a signal. This is
@@ -215,7 +234,9 @@ Hone is **complete** when:
 - [ ] Every applied fix is committed and the full suite is green (quench's hardening gates re-pass)
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 
-When complete, say:
+When complete, lead with **Needs your call** — findings rejected in the log, UNCONFIRMED
+findings logged as open, NITs deferred as follow-ups, any amendment to a tempered
+artifact, tasks logged as anvil feedback — or "nothing", then say:
 
 > "Hone complete: A++ reached after N round(s). Pipeline complete. Use
 > `superpowers:finishing-a-development-branch` for merge/PR (KEEP-listed)."
