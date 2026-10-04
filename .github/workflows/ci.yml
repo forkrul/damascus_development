@@ -103,6 +103,21 @@ jobs:
           grep -q '^- \[ \]' "$spec/tasks.md" && { echo "::error::tasks.md has unchecked tasks at pipeline end"; exit 1; }
           echo "example trail complete"
 
+  docs:
+    name: sphinx docs (zero warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # -W turns every warning into an error, --keep-going reports them all at once,
+      # -n also flags unresolved references. The runner's python3 is enough; the
+      # toolchain is pinned in docs/requirements.txt.
+      - name: build
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet -r docs/requirements.txt
+          .venv/bin/sphinx-build -W --keep-going -n -b html docs docs/_build/html
+
   smoke:
     name: install/uninstall smoke test
     strategy:

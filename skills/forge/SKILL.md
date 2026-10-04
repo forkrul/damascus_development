@@ -55,7 +55,7 @@ Empty section = forge has not exited. The next stage (`anvil`) refuses to start 
 
 Copy this into the new PRD file and elicit answers from the user section by section. If the user answers "you decide" for any section, propose your best guess and explicitly mark it `[ASSUMED — confirm before anvil]`.
 
-```markdown
+````markdown
 # PRD NNN: <feature title>
 
 **Status:** Draft (forge)
@@ -119,7 +119,7 @@ Copy this into the new PRD file and elicit answers from the user section by sect
 ## Assumptions (mark each as confirmed before anvil)
 
 - [ASSUMED]
-```
+````
 
 ## Elicitation Strategy
 
