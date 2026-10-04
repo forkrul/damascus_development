@@ -23,7 +23,7 @@ _Initial release, to be published as 0.1.0 (see the release ritual in `CLAUDE.md
 - Require a repro or an implementer's question on blocking findings, and add the `UNCONFIRMED` finding class ([#22](https://github.com/forkrul/damascus_development/pull/22))
 - Run quench's `[P]` tasks in parallel git worktrees and merge them one at a time ([#22](https://github.com/forkrul/damascus_development/pull/22))
 - Add `examples/cart-discounts/`, one feature's artifact trail through all five gates ([`e17bbff`](https://github.com/forkrul/damascus_development/commit/e17bbff))
-- Document the pipeline in a Sphinx site with mermaid architecture diagrams, generated from the shipped files (#PR)
+- Document the pipeline in a Sphinx site with mermaid architecture diagrams, generated from the shipped files ([#23](https://github.com/forkrul/damascus_development/pull/23))
 - Document install, upgrades, pins and the superpowers policy in the README ([#1](https://github.com/forkrul/damascus_development/pull/1)) ([`e17bbff`](https://github.com/forkrul/damascus_development/commit/e17bbff))
 - Document the single-founder production-readiness plan ([#3](https://github.com/forkrul/damascus_development/pull/3))
 - License the project under MIT; vendored submodules keep their upstream licenses ([#3](https://github.com/forkrul/damascus_development/pull/3))
