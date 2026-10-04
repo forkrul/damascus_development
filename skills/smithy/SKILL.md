@@ -64,10 +64,9 @@ Smithy **always** halts at these moments:
 4. **Spec ambiguity surfaced during quench** — Golden Rule: halt, edit spec/tasks first, then resume.
 5. **Drift detected** — if the host repo has a drift detector (e.g. a pre-commit hook warning that `src/**` changed without `specs/**` change) and it fires, halt and require justification.
 
-Each halt prints:
-- The stage just exited
-- The artifact path created/updated
-- The exact command to resume (`smithy --resume` or `smithy --start-from <stage>`)
+**Between gates, keep going.** A finished quench task or temper/hone round is not a gate: run the next one without stopping to summarise, offer to continue, or list choices that don't block the work, and put status notes in the same message as the next action. Outside the five gates above, stop only for a stage's own refusal or escalation, or before anything destructive (deleting data, force-pushing, rewriting history, changing anything outside the repository).
+
+Each halt prints the handoff message below: what needs the user first, then the stage just exited, the artifact path created/updated, and the exact command to resume (`smithy --resume` or `smithy --start-from <stage>`).
 
 ## Escape Hatches
 
@@ -130,11 +129,13 @@ the merge handoff. It adds no board sync of its own (see the single-call-site ru
 
 ## Handoff Messages
 
-After every stage exit, smithy prints:
+After every stage exit, smithy prints the open items first, read from the artifacts, not from memory: the ones the stage's gate names (assumptions, rejected or open findings, waivers, freeze exceptions, anvil feedback) plus any BYPASS or OVERRIDE line in `smithy-log.md`. "Nothing" is printed too, so the user can see the list was checked.
 
 ```
 ✓ Stage <name> complete.
-  Artifact: <path>
+  Needs your call: <each open item and where it is logged | nothing>
+  Changed: <artifact path(s)>
+  Found: <one line: rating and rounds, test counts, notable findings>
   Next stage: <name> — run? (y/N)
   To resume later: smithy --resume
   To skip the next stage: smithy --skip <name>
@@ -144,6 +145,7 @@ After full pipeline completion:
 
 ```
 ✓ SPDD pipeline complete for feature NNN-<slug>.
+  Needs your call: <open items across all artifacts | nothing>
   - PRD: .prd/NNN_<slug>.md
   - Spec: specs/NNN-<slug>/{spec,plan,tasks}.md
   - Spec reviews: specs/NNN-<slug>/review.md (A++ in N rounds)

@@ -46,6 +46,7 @@ Things worth noticing as you read:
 - **A flake is red.** T006 went stable-green 2/3, was sent back to red, and the root cause was in the implementation — the test was never touched.
 - **One waiver, with reasoning.** T004's surviving mutant only rewrote a log message; the log says why that is not a weak test.
 - **Hone's one blocking finding went the long way round.** The missing ownership check on `DELETE` had no test, so the fix could not simply be written: `tasks.md`'s T004 gate was amended first, the test agent added the test (the freeze exception is in `quench-log.md`), the implementer fixed the router, and the log shows the revert-check — fix out, test red; fix in, test green. Round 2 reviewed that fix as part of its diff; round 3 confirmed.
+- **A suspicion is not a finding.** Hone round 1's security critic suspected that response timing could reveal which codes exist, but couldn't time requests in its harness. It logged the issue as UNCONFIRMED, round 2 ran the targeted check and killed it with the measurement, and only the ownership finding, which came with a repro, was treated as blocking.
 - **Ratings measure what the panel examined.** Hone round 1 was C on one finding; a round is "clean" only if the previous round's fixes were in the diff its critics saw, which is why A++ took three rounds, not two.
 - **Smithy never needed CI.** Every RESUME entry was decided from the files above; the session that halted mid-quench resumed from `tasks.md`'s two unchecked items.
 

@@ -15,6 +15,7 @@ Damascus packages the **SPDD pipeline** (forge → anvil → temper → quench �
 - `install.sh` must stay idempotent, bash 3.2 compatible (no `declare -A`, no `readlink -f`, no `realpath --relative-to`, no GNU-only flags without a fallback), only ever touch symlinks that resolve into this checkout, create only relative links, and exit non-zero when a link could not be placed. `tests/smoke.sh` encodes these guarantees against a throwaway repo — run it locally before pushing; CI runs it on Ubuntu and macOS (including stock bash 3.2). CI also `source`s `install.sh` to read its name arrays, so keep the sourcing guard at the bottom of the script.
 - Every PR updates `CHANGELOG.md` under `[Unreleased]` (Common Changelog categories). CI enforces this.
 - Branch → PR → squash merge. Never push to `master` directly.
+- When a step doesn't need the maintainer, keep going and put status notes in the same message as the next action. Stop and ask only when you can't continue without them, or before anything destructive or outward-facing: force-pushing, pushing or moving a tag (a tag push publishes a Release), or deleting a branch, tag or release.
 - The temper and hone stages are **local-only by design** — do not reintroduce external-API review dependencies.
 
 ## Releasing

@@ -2,7 +2,7 @@
 
 ## Round 1 — 2026-03-10 09:14
 - Critics: completeness, feasibility, testability (all three attached their procedure artifacts)
-- Blocking: 3  Nits: 6 (4 killed by judge)
+- Blocking: 3  Unconfirmed: 0  Nits: 6 (4 killed by judge)
 - Overlap: 1/5 (20 % — D ≥ 4 and m/D < 25 % → **rating capped at B+**)
 - Rating: B+ (judge's uncapped grade was A: two of the three blocking findings are one-line clarifications, but the near-disjoint finding sets say the critics have not exhausted the defect pool)
 - Findings applied:
@@ -15,14 +15,14 @@
 
 ## Round 2 — 2026-03-10 09:58
 - Critics: completeness, feasibility, testability
-- Blocking: 0  Nits: 2 (both killed — completeness asked for a rate-limit FR: scope creep, not in the PRD; testability wanted `test_perf` renamed: cosmetic)
+- Blocking: 0  Unconfirmed: 0  Nits: 2 (both killed — completeness asked for a rate-limit FR: scope creep, not in the PRD; testability wanted `test_perf` renamed: cosmetic)
 - Overlap: 0/2 (D < 4 — signal not computed, no cap)
 - Rating: A+ (clean pass 1 of 2)
 - Artifacts on file: completeness re-derived Entities/Operations from Requirements alone and matched all three tables and seven operations; feasibility traced `POST /cart/{id}/discount` → lookup → clamp → cart row → response → checkout → Redemption with no unstated decision; testability drafted a skeleton per FR (5/5) without a question for the author.
 
 ## Round 3 — 2026-03-10 10:24
 - Critics: completeness, feasibility, testability
-- Blocking: 0  Nits: 0
+- Blocking: 0  Unconfirmed: 0  Nits: 0
 - Overlap: n/a (no findings)
 - Rating: A++  ← exit (clean pass 2 of 2)
 - Attack angles tried and failed: guest cart with a redeemed code (spec says guests skip FR-004 — consistent); subtotal changing after apply (FR-002 recomputes on read); code deleted after apply (`ON DELETE SET NULL` in plan.md Entities); percent value 0 (excluded by the `value ≥ 1` check constraint, spec Key Entities).
