@@ -1,0 +1,4 @@
+# Sphinx output and the pages docs/_ext/damascus_sources.py regenerates on every build
+docs/_build/
+docs/_generated/
+__pycache__/

@@ -58,6 +58,17 @@ Both loops need **no external API**. Each round, three critic subagents with dis
 
 Once `hone` reaches A++, `smithy` runs a final finish step before the merge handoff: it updates `README.md` and `CHANGELOG.md` for the completed feature, then — **if the `atlas` skill is available in the consumer's environment** — invokes Atlas scoped to that feature to produce an intent-vs-reality survey for the handover. Atlas is not vendored by Damascus; where it is not installed the step is a silent no-op, exactly like the optional kanban sync.
 
+## Documentation
+
+[`docs/`](docs/) is a Sphinx site that also reads on GitHub. [Architecture](docs/architecture.md) draws the contracts as mermaid diagrams — smithy's state machine, the adversarial review round, red-amber-green, parallel `[P]` tasks, how `install.sh` places a link. The stage, agent, example and changelog pages are generated at build time from the files that ship, so the docs cannot drift from the contracts your agents load. Build it locally (CI runs the same command and fails on any warning):
+
+```bash
+pip install -r docs/requirements.txt
+sphinx-build -W --keep-going -n -b html docs docs/_build/html
+```
+
+The toolchain is docs-only; `install.sh` and consumers need none of it.
+
 ## Requirements
 
 - git ≥ 2.13 (submodules)
@@ -138,6 +149,7 @@ skills/{forge,anvil,temper,quench,hone,smithy}/SKILL.md   the six skills (5 stag
 skills/<alias> -> <stage>                                 invocation aliases
 agents/*.md                                               quench's dispatch agents
 examples/cart-discounts/                                  one feature's full artifact trail, gate by gate
+docs/                                                     Sphinx site: architecture diagrams + pages generated from the files above
 vendor/superpowers                                        pinned submodule
 vendor/spec-kit                                           pinned submodule
 install.sh                                                consumer-side symlinker
