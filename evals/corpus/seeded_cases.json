@@ -20,7 +20,7 @@
           "lens": "feasibility",
           "target": "tasks.md:T001 / plan.md:Phases",
           "anchors": ["T001", "T002"],
-          "diagnosis": ["400", "too large", "oversized", "exceeds", "budget", "split", "depends on", "dependency", "dependencies", "out of order", "ordering", "circular", "not yet exist*", "later phase", "scheduled after"],
+          "diagnosis": ["400", "too large", "oversized", "exceeds", "budget", "split", "depends on", "dependency", "dependencies", "out of order", "ordering", "circular", "not yet exist*", "later phase", "scheduled after", "inverted", "cannot execute", "can't execute"],
           "description": "Task T001 estimates ~750 changed lines across 9 files (violating the <=400-line task sizing budget) and imports CouponRepository from T002 which is scheduled in Phase 2 after T001."
         },
         {
@@ -28,7 +28,7 @@
           "lens": "testability",
           "target": "spec.md:SC-002",
           "anchors": ["SC-002"],
-          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no latency", "no bound", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable"],
+          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no latency", "no bound", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable", "can't be measured", "cannot be measured"],
           "description": "Success Criterion SC-002 ('The checkout system is fast and handles errors gracefully') is vacuous: it names no verification command, no latency bound in ms, and no concrete single-line mutation/stub falsifier."
         }
       ],
@@ -61,7 +61,7 @@
           "lens": "completeness",
           "target": "spec.md:FR-003 / INV-002",
           "anchors": ["FR-003", "INV-002"],
-          "diagnosis": ["contradict*", "inconsistent", "violat*", "not disjoint", "mutually exclusive", "overlap*", "double-count*", "double count*", "incompatible", "satisfy both", "cannot both", "can't both", "impossible", "cannot be satisfied", "can't be satisfied"],
+          "diagnosis": ["contradict*", "inconsistent", "violat*", "not disjoint", "mutually exclusive", "overlap*", "double-count*", "double count*", "incompatible", "satisfy both", "cannot both", "can't both", "impossible", "cannot be satisfied", "can't be satisfied", "can't hold", "cannot hold"],
           "description": "FR-003 states soft-deleted keys are recorded in BOTH `adds` and `updates`, directly contradicting Safeguard INV-002 ('adds, updates, preserves, and conflicts must form a strictly disjoint partition of input entries')."
         },
         {
@@ -77,7 +77,7 @@
           "lens": "testability",
           "target": "spec.md:SC-002",
           "anchors": ["SC-002"],
-          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "no test", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable"],
+          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "no test", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable", "can't be measured", "cannot be measured"],
           "description": "SC-002 ('Import never causes silent data loss') is vacuous with no concrete test command or single-line mutation falsifier."
         }
       ],

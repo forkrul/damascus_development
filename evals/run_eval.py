@@ -514,6 +514,8 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         "recall": round(matched / total, 2) if total else 1.0,
         "clean_false_positives": sum(r["blocking_findings"] for r in results if not r["total"]),
         "unmatched_blocking_on_seeded": sum(r["unmatched_blocking"] for r in seeded),
+        # A case whose backend failed (timeout, crash) has no reply: its zero is not a result.
+        "errored_cases": [r["id"] for r in results if r.get("returncode", 0) != 0],
     }
 
 
@@ -523,7 +525,7 @@ def echo_baseline() -> dict[str, Any]:
     results = []
     for case in seeded + clean:
         r = score_reply(case, case_prompt(case))
-        results.append({**r, "total": len(case.get("seeded_blocking_defects", []))})
+        results.append({**r, "id": case["id"], "total": len(case.get("seeded_blocking_defects", []))})
     return summarize(results)
 
 
@@ -750,6 +752,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"{llm_res['unmatched_blocking_on_seeded']} other BLOCKING finding(s) on seeded cases{note}"
             )
             print(f"    echo-the-prompt baseline: {echo['matched_defects']} / {echo['total_defects']}, {echo['clean_false_positives']} clean false positives")
+            if llm_res["errored_cases"]:
+                print(f"    [WARN] backend failed on {', '.join(llm_res['errored_cases'])}: those cases have no reply, so the totals above are incomplete")
             for case_res in llm_res.get("cases", []):
                 found = f"{len(case_res['matched'])} / {case_res['total']} {case_res['matched']}" if case_res["total"] else "clean control"
                 print(
