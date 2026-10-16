@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Fix the README's install and upgrade snippets, which committed whatever `master` was instead of the pinned tag: initialise damascus's submodules from inside `vendor/damascus` rather than from the repo root ([#28](https://github.com/forkrul/damascus_development/pull/28))
 - Rewrite the README around a quick start: the real clone URL, how to start a feature with smithy, red-amber-green next to the gates it belongs to, a table of the `damascus` commands, and a `vX.Y.Z` upgrade example instead of a release that doesn't exist ([#28](https://github.com/forkrul/damascus_development/pull/28))
 - Mark `docs/production-readiness.md` as a record of the original plan with branch protection the one open item, and describe the docs as harness-agnostic rather than Claude Code-only ([#28](https://github.com/forkrul/damascus_development/pull/28))
 

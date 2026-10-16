@@ -62,9 +62,10 @@ nothing.
 
 ### Role routing: `.damascus/models.conf`
 
-Under `--backend auto` with a `--role`, the backend and model come from the first match
-in this order (the role is upper-cased with dashes turned into underscores, so
-`critic-a` → `CRITIC_A`):
+When no `--model` is given, the model comes from the first match in the right-hand
+column; when `--backend` is `auto` (the default), the backend comes from the first match
+in the left-hand column. The `<ROLE>` rows apply only with `--role`, which is upper-cased
+with dashes turned into underscores (`critic-a` → `CRITIC_A`):
 
 | Backend from | Model from |
 |--------------|------------|
@@ -73,7 +74,7 @@ in this order (the role is upper-cased with dashes turned into underscores, so
 | env `DAMASCUS_BACKEND` | env `DAMASCUS_MODEL` |
 | `models.conf` `DEFAULT_BACKEND` | `models.conf` `DEFAULT_MODEL` |
 
-An explicit `--backend` or `--model` on the command line wins over all of these.
+An explicit `--backend` or `--model` on the command line wins over its column.
 `models.conf` is read from `.damascus/models.conf` under the current directory, as
 `KEY=VALUE` lines; `#` starts a comment and surrounding quotes are dropped:
 

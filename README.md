@@ -14,8 +14,8 @@ From your repo root, pinning a release tag (see [Releases](https://github.com/fo
 
 ```bash
 git submodule add https://github.com/forkrul/damascus_development.git vendor/damascus
-git -C vendor/damascus checkout v0.1.0        # pin a release, never a moving branch
-git submodule update --init --recursive
+git -C vendor/damascus checkout v0.1.0                          # pin a release, never a moving branch
+git -C vendor/damascus submodule update --init --recursive      # damascus's own pinned submodules
 ./vendor/damascus/install.sh
 git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.0"
 ```
@@ -91,12 +91,12 @@ Smithy decides from what is on disk, and you can too:
 ./vendor/damascus/install.sh --all-harnesses  # also create and link .agents/ and .gemini/
 ```
 
-To upgrade, check out the new tag and re-run the installer:
+To upgrade, check out the new tag and re-run the installer. Run the submodule update *inside* `vendor/damascus` as shown: a plain `git submodule update` from your repo root would reset `vendor/damascus` to the commit your repo last recorded, undoing the checkout.
 
 ```bash
 git -C vendor/damascus fetch --tags
 git -C vendor/damascus checkout vX.Y.Z
-git submodule update --init --recursive
+git -C vendor/damascus submodule update --init --recursive
 ./vendor/damascus/install.sh
 git add vendor/damascus && git commit -m "chore: bump damascus to vX.Y.Z"
 ```
