@@ -194,8 +194,24 @@ check "proof-coverage confirms 100% of changed production files have RED revert-
     --fix-ref "HEAD" \
     --report "$REPORT_JSON"
 
-check "upgrade-consumers upgrades and verifies writable consumer repo" \
-    damascus upgrade-consumers --repo "$TMP_PROJECT"
+# A consumer is re-linked with its own vendor/damascus installer (here a symlink to this
+# checkout); a repo without one is skipped rather than linked to whoever runs the command.
+BARE_PROJECT="$(mktemp -d)"
+mkdir -p "$TMP_PROJECT/vendor"
+ln -s "$REPO_ROOT" "$TMP_PROJECT/vendor/damascus"
+consumer_status() { # repo status [installer]: assert the reported status (and that the repo's own installer ran)
+    local out; out="$(damascus upgrade-consumers --repo "$1" --json)" || return 1
+    grep -q "\"status\": \"$2\"" <<<"$out" || return 1
+    # the tool reports resolved paths (macOS: /var -> /private/var), so compare against one
+    [ -z "${3:-}" ] || grep -q "\"installer\": \"$(cd "$1" && pwd -P)/vendor/damascus/install.sh\"" <<<"$out"
+}
+check "upgrade-consumers re-links and verifies a consumer with its own vendor/damascus" \
+    consumer_status "$TMP_PROJECT" UPGRADED
+check "upgrade-consumers runs the consumer's own vendor/damascus/install.sh" \
+    consumer_status "$TMP_PROJECT" UPGRADED installer
+check "upgrade-consumers skips a repo without vendor/damascus" \
+    consumer_status "$BARE_PROJECT" SKIPPED_NO_VENDOR
+rm -rf "$BARE_PROJECT"
 
 echo ""
 echo "=== Dogfood Summary: $pass passed, $fail failed ==="

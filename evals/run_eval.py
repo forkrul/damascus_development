@@ -370,8 +370,8 @@ def adjudicate_stratified_rating(findings: list[dict[str, str]]) -> str:
     m_b = sum(1 for critics in by_id.values() if len(critics) >= 2)
     overlap_b = (m_b / d_b) if d_b > 0 else 1.0
 
-    # Low overlap cap applies ONLY when D_B >= 4 and m_B / D_B < 0.20
-    low_overlap_cap = d_b >= 4 and overlap_b < 0.20
+    # Low overlap cap applies ONLY when D_B >= 4 and m_B / D_B < 25 % (skills/temper, skills/hone)
+    low_overlap_cap = d_b >= 4 and overlap_b < 0.25
     if d_b == 0 and important_count == 0:
         return "B+" if low_overlap_cap else "A+"
     if d_b == 0 and important_count <= 2:
