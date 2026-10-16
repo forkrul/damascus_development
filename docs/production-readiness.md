@@ -6,7 +6,8 @@ sustain that promise with near-zero recurring toil.**
 
 There is no runtime service here. The product surface is exactly three things:
 
-1. `install.sh` — the only executable code
+1. `install.sh` — at the time the only executable code (the `scripts/damascus-*`
+   commands came later)
 2. the five `SKILL.md` contracts (+ aliases + agents)
 3. the two pinned vendor submodules
 
@@ -15,17 +16,17 @@ automated maintenance** — not uptime. The single-founder constraint drives eve
 choice below: prefer automation over process, CI gates over human review, and
 scheduled bots over remembering things.
 
-Current gaps (as of this writing): no LICENSE, no `.github/` (zero CI), no tags or
-releases, install.sh smoke-tested only by hand, submodule bumps are manual and
-unprompted, and `install.sh` hard-fails on stock macOS bash 3.2 (`declare -A`).
+> **Status (2026-10):** this is the plan as written before the work, kept as a
+> record; checked boxes are done. `v0.1.0` is
+> [released](https://github.com/forkrul/damascus_development/releases/tag/v0.1.0).
+> One item is still open: **branch protection on `master`** (require PR + green CI,
+> no force-push, no required approver count), set in repo Settings → Branches.
+> Where an item below describes the starting point — bash ≥ 4, GNU coreutils —
+> Phase 1 removed it: `install.sh` now runs on stock macOS bash 3.2.
 
-> **Status:** phases 0–5 are implemented in-repo (checked boxes below). Two items
-> remain manual, GitHub-side, after this lands on `master`:
-> **(1)** cut `v0.1.0`: one PR that moves `[Unreleased]` under `## [0.1.0] - <date>`,
-> then push the tag — the `Release` workflow publishes the GitHub Release from
-> that section;
-> **(2)** enable branch protection on `master` (require PR + green CI, no
-> force-push, no required approver count) in repo Settings → Branches.
+When the plan was written there was no LICENSE, no `.github/` (zero CI), no tags or
+releases; install.sh was smoke-tested only by hand, submodule bumps were manual and
+unprompted, and `install.sh` hard-failed on stock macOS bash 3.2 (`declare -A`).
 
 ---
 

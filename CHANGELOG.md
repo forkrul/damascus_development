@@ -2,14 +2,21 @@
 
 ## [Unreleased]
 
-### Fixed
+### Changed
 
-- Make `./install.sh eval --live-llm` measure something: a seeded defect now counts only when a `[BLOCKING]` finding names it and diagnoses it in words absent from the prompt. Before, any keyword anywhere in the reply counted, and echoing the prompt scored 12/12. The clean control is now scored for false positives, the echo baseline is reported, and every prompt and raw reply is saved under `.damascus/eval-runs/`. The corpus `keywords` field becomes `anchors` + `diagnosis` (corpus 0.3.0) ([#27](https://github.com/forkrul/damascus_development/pull/27))
-- Fix the clean control's FR-001, which did not say how to round, so INV-001 failed for sub-cent subtotals; it now rounds down ([#27](https://github.com/forkrul/damascus_development/pull/27))
+- Rewrite the README around a quick start: the real clone URL, how to start a feature with smithy, red-amber-green next to the gates it belongs to, a table of the `damascus` commands, and a `vX.Y.Z` upgrade example instead of a release that doesn't exist ([#28](https://github.com/forkrul/damascus_development/pull/28))
+- Mark `docs/production-readiness.md` as a record of the original plan with branch protection the one open item, and describe the docs as harness-agnostic rather than Claude Code-only ([#28](https://github.com/forkrul/damascus_development/pull/28))
 
 ### Added
 
+- Add `docs/reference.md`, a configuration and CLI reference written from the code: model routing through `.damascus/models.conf` and `DAMASCUS_*` variables, every gate's flags, exit codes and file formats, stage addenda, and the evaluation harness with the live critic benchmark ([#28](https://github.com/forkrul/damascus_development/pull/28))
 - Add `evals/run_eval.py --check-corpus`, run in CI, which fails when echoing the prompt earns credit, when a defect is not matched by its own description or is matched by a sibling's, or when a NIT counts as BLOCKING ([#27](https://github.com/forkrul/damascus_development/pull/27))
+
+### Fixed
+
+- Fix the README's install and upgrade snippets, which committed whatever `master` was instead of the pinned tag: initialise damascus's submodules from inside `vendor/damascus` rather than from the repo root ([#28](https://github.com/forkrul/damascus_development/pull/28))
+- Make `./install.sh eval --live-llm` measure something: a seeded defect now counts only when a `[BLOCKING]` finding names it and diagnoses it in words absent from the prompt. Before, any keyword anywhere in the reply counted, and echoing the prompt scored 12/12. The clean control is now scored for false positives, the echo baseline is reported, and every prompt and raw reply is saved under `.damascus/eval-runs/`. The corpus `keywords` field becomes `anchors` + `diagnosis` (corpus 0.3.0) ([#27](https://github.com/forkrul/damascus_development/pull/27))
+- Fix the clean control's FR-001, which did not say how to round, so INV-001 failed for sub-cent subtotals; it now rounds down ([#27](https://github.com/forkrul/damascus_development/pull/27))
 
 ## [0.1.0] - 2026-10-16
 
