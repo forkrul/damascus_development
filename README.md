@@ -131,14 +131,14 @@ Breaking changes to skill contracts or `install.sh` behavior are called out in [
 
 | Submodule | Pin | Role |
 |-----------|-----|------|
-| [obra/superpowers](https://github.com/obra/superpowers) | v6.3.0 | process-discipline skills; KEEP-class linked at install |
-| [github/spec-kit](https://github.com/github/spec-kit) | v1.0.6 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
+| [obra/superpowers](https://github.com/obra/superpowers) | v7.0.0 | process-discipline skills; KEEP-class linked at install |
+| [github/spec-kit](https://github.com/github/spec-kit) | v1.2.0 | `anvil`'s fallback templates (`templates/{spec,plan,tasks}-template.md`) when `/speckit.*` slash commands aren't registered |
 
 CI checks that each pointer sits exactly on an upstream tag and that this table names it, so a bump is always deliberate: check out the tag, update the row, note it in the changelog.
 
 ## Superpowers Policy (DENY / KEEP / CONDITIONAL)
 
-The pipeline stages are the canonical entrypoints. Six upstream skills are **DENY** — not linked at install — because they overlap a stage or route back into a skill that does; each stage skill carries redirect language. CI fails when an upstream skill has no row here and is not in `install.sh`'s KEEP list, so a new upstream skill must be classified before a bump merges.
+The pipeline stages are the canonical entrypoints. Seven upstream skills are **DENY** — not linked at install — because they overlap a stage or route back into a skill that does; each stage skill carries redirect language. CI fails when an upstream skill has no row here and is not in `install.sh`'s KEEP list, so a new upstream skill must be classified before a bump merges.
 
 | Upstream skill | Policy | Use instead |
 |----------------|--------|-------------|
@@ -147,6 +147,7 @@ The pipeline stages are the canonical entrypoints. Six upstream skills are **DEN
 | `executing-plans` | DENY | `quench` (or `smithy` cross-stage) — BDD-first, red-amber-green |
 | `requesting-code-review` | DENY | `hone` — three-lens adversarial diff review with a logged A++ trail |
 | `using-superpowers` | DENY | `smithy` — the upstream router sends "let's build X" to `brainstorming`; smithy is this pipeline's entrypoint |
+| `diagnosing-superpowers` | DENY | none — a session-transcript analyser that builds bug reports for the superpowers maintainers; it is not a pipeline step, and the stages' own logs (`quench-log.md`, `smithy-log.md`) already record what happened |
 | `subagent-driven-development` | DENY | `quench` — an execution loop that dispatches `requesting-code-review`'s reviewer; quench + hone replace it |
 | `test-driven-development` | CONDITIONAL | linked; quench **overrides** its red-green cycle with red-amber-green |
 | remaining 7 skills | KEEP | linked as-is (`systematic-debugging`, `dispatching-parallel-agents`, `verification-before-completion`, `receiving-code-review`, `finishing-a-development-branch`, `using-git-worktrees`, `writing-skills`) |
