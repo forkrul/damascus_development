@@ -2,7 +2,9 @@
 
 ## [Unreleased]
 
-_Initial release, to be published as 0.1.0 (see the release ritual in `CLAUDE.md`)._
+## [0.1.0] - 2026-10-16
+
+_Initial release._
 
 ### Added
 
@@ -40,4 +42,5 @@ _Initial release, to be published as 0.1.0 (see the release ritual in `CLAUDE.md
 - Document the single-founder production-readiness plan ([#3](https://github.com/forkrul/damascus_development/pull/3))
 - License the project under MIT; vendored submodules keep their upstream licenses ([#3](https://github.com/forkrul/damascus_development/pull/3))
 
-[Unreleased]: https://github.com/forkrul/damascus_development/commits/master
+[Unreleased]: https://github.com/forkrul/damascus_development/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.0
