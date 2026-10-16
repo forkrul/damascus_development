@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Seeded defect benchmark corpus for Damascus temper and hone adversarial review loops, modeled on field defects seen in several consumer repositories (an auth library, a localization tool, API and CRUD services, a media service, a PCB-design repo and an enterprise requirements analysis).",
   "temper_cases": [
     {
@@ -11,21 +11,24 @@
           "id": "D1",
           "lens": "completeness",
           "target": "spec.md:INV-001 / tasks.md",
-          "keywords": ["INV-001", "unmapped", "tasks.md", "DELTA", "INVARIANT"],
+          "anchors": ["INV-001", "FR-001"],
+          "diagnosis": ["unmapped", "not mapped", "no task", "no tasks", "not covered", "uncovered", "untraced", "not traced", "orphan*", "unclassified", "untagged", "classification", "missing tag", "not tagged", "no tag"],
           "description": "Safeguard INV-001 (discount must never exceed 100% or produce a negative total) is declared in spec.md but mapped to zero tasks in tasks.md, and FR-001 lacks a [DELTA]/[INVARIANT] classification."
         },
         {
           "id": "D2",
           "lens": "feasibility",
           "target": "tasks.md:T001 / plan.md:Phases",
-          "keywords": ["400", "T002", "phase", "order", "dependency", "750"],
+          "anchors": ["T001", "T002"],
+          "diagnosis": ["400", "too large", "oversized", "exceeds", "budget", "split", "depends on", "dependency", "dependencies", "out of order", "ordering", "circular", "not yet exist*", "later phase", "scheduled after"],
           "description": "Task T001 estimates ~750 changed lines across 9 files (violating the <=400-line task sizing budget) and imports CouponRepository from T002 which is scheduled in Phase 2 after T001."
         },
         {
           "id": "D3",
           "lens": "testability",
           "target": "spec.md:SC-002",
-          "keywords": ["SC-002", "vacuous", "stub", "falsif", "gracefully", "fast"],
+          "anchors": ["SC-002"],
+          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no latency", "no bound", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable"],
           "description": "Success Criterion SC-002 ('The checkout system is fast and handles errors gracefully') is vacuous: it names no verification command, no latency bound in ms, and no concrete single-line mutation/stub falsifier."
         }
       ],
@@ -44,7 +47,7 @@
         {"critic": "critic-c", "severity": "NIT", "id": "N3", "text": "Rename test fixture cart_100 to active_cart_100_eur."},
         {"critic": "critic-c", "severity": "NIT", "id": "N4", "text": "Add @smoke tag to US1 scenario."}
       ],
-      "spec_md": "# Spec 002: Clean Coupon Validator\n\n## User Stories\n- **US1:** As a customer, I want valid coupons applied to my cart.\n\n## Functional Requirements\n- **FR-001 [DELTA]:** `apply_coupon(subtotal_eur, percent)` returns `subtotal_eur * (100 - percent) / 100` rounded to 0.01 EUR.\n\n## Safeguard Invariants\n- **INV-001:** `0.00 <= apply_coupon(subtotal_eur, percent) <= subtotal_eur` for all `subtotal_eur >= 0` and `0 <= percent <= 100`.\n\n## Success Criteria\n- **SC-001:** `pytest tests/unit/test_pricing.py` passes (Falsifier: changing `100 - percent` to `100 + percent` in `src/pricing.py` fails `test_inv_001_discount_bounds`).\n",
+      "spec_md": "# Spec 002: Clean Coupon Validator\n\n## User Stories\n- **US1:** As a customer, I want valid coupons applied to my cart.\n\n## Functional Requirements\n- **FR-001 [DELTA]:** `apply_coupon(subtotal_eur, percent)` returns `subtotal_eur * (100 - percent) / 100` rounded down (`ROUND_DOWN`) to 0.01 EUR.\n\n## Safeguard Invariants\n- **INV-001:** `0.00 <= apply_coupon(subtotal_eur, percent) <= subtotal_eur` for all `subtotal_eur >= 0` and `0 <= percent <= 100`.\n\n## Success Criteria\n- **SC-001:** `pytest tests/unit/test_pricing.py` passes (Falsifier: changing `100 - percent` to `100 + percent` in `src/pricing.py` fails `test_inv_001_discount_bounds`).\n",
       "plan_md": "# Plan 002: Clean Coupon Validator\n\n## REASONS Canvas\n- **Requirements:** FR-001, INV-001\n- **Entities:** `PricingResult(total_eur: Decimal)`\n- **Approach:** Pure decimal arithmetic helper validated by Hypothesis.\n- **Structure:** `src/pricing.py`, `tests/unit/test_pricing.py`\n- **Operations:** `apply_coupon(subtotal_eur: Decimal, percent: int) -> Decimal`\n- **Norms:** `ruff check . && mypy --strict src/`\n- **Safeguards:** `INV-001` enforced via Hypothesis property test.\n\n## Phases\n- **Phase 1:** T001 (`src/pricing.py` + unit & property tests).\n",
       "tasks_md": "# Tasks 002: Clean Coupon Validator\n\n- [ ] **T001 [US1] [DELTA]** Implement `apply_coupon` in `src/pricing.py` (~35 lines).\n  - Files: `src/pricing.py`, `tests/unit/test_pricing.py`\n  - Satisfies: FR-001, INV-001\n  - Gate: `pytest tests/unit/test_pricing.py && ruff check . && mypy --strict src/`\n"
     },
@@ -57,21 +60,24 @@
           "id": "B1",
           "lens": "completeness",
           "target": "spec.md:FR-003 / INV-002",
-          "keywords": ["soft-deleted", "INV-002", "partition", "disjoint", "both", "adds", "updates"],
+          "anchors": ["FR-003", "INV-002"],
+          "diagnosis": ["contradict*", "inconsistent", "violat*", "not disjoint", "mutually exclusive", "overlap*", "double-count*", "double count*", "incompatible", "satisfy both", "cannot both", "can't both", "impossible", "cannot be satisfied", "can't be satisfied"],
           "description": "FR-003 states soft-deleted keys are recorded in BOTH `adds` and `updates`, directly contradicting Safeguard INV-002 ('adds, updates, preserves, and conflicts must form a strictly disjoint partition of input entries')."
         },
         {
           "id": "B2",
           "lens": "feasibility",
           "target": "plan.md:Structure / tasks.md:T001",
-          "keywords": ["psycopg", "postgresql", "sqlite", "zero new runtime", "constitution"],
-          "description": "plan.md Norms state 'SQLite-only; zero new runtime dependencies', but T001 adds `psycopg[binary]` and PostgreSQL advisory locks to `src/tmmerge/db.py`."
+          "anchors": ["psycopg", "postgres*", "advisory", "T001"],
+          "diagnosis": ["violat*", "contradict*", "inconsistent", "new dependency", "new runtime dependency", "not allowed", "forbid*", "prohibit*", "breaks the", "incompatible"],
+          "description": "plan.md Norms state 'SQLite-only; zero new runtime dependencies', but T001 adds `psycopg[binary]` and PostgreSQL advisory locks to `src/tmmerge/db.py`, violating that norm."
         },
         {
           "id": "B3",
           "lens": "testability",
           "target": "spec.md:SC-002",
-          "keywords": ["SC-002", "silent data loss", "vacuous", "falsif"],
+          "anchors": ["SC-002"],
+          "diagnosis": ["vacuous", "unmeasurable", "not measurable", "untestable", "not testable", "no threshold", "no metric", "subjective", "vague", "ambiguous", "not verifiable", "unverifiable", "no verification", "no test", "measurable", "cannot be verified", "can't be verified", "not checkable", "uncheckable"],
           "description": "SC-002 ('Import never causes silent data loss') is vacuous with no concrete test command or single-line mutation falsifier."
         }
       ],
@@ -89,19 +95,22 @@
         {
           "id": "H1",
           "lens": "conformance",
-          "keywords": ["FR-002", "expired", "expires_at", "missing"],
+          "anchors": ["expire*", "FR-002", "apply_coupon"],
+          "diagnosis": ["never check*", "not check*", "no check", "doesn't check", "does not check", "without check*", "does not reject", "doesn't reject", "not reject*", "not enforced", "unimplemented", "not implemented", "ignor*", "no validation", "not validated"],
           "description": "FR-002 requires rejecting expired coupons with 422, but apply_coupon never checks coupon.expires_at."
         },
         {
           "id": "H2",
           "lens": "security",
-          "keywords": ["utcnow", "timezone", "naive", "eval"],
+          "anchors": ["utcnow", "eval", "datetime"],
+          "diagnosis": ["naive", "timezone", "tz-aware", "aware", "deprecated", "arbitrary code", "code execution", "injection", "rce", "unsafe", "literal_eval", "remote code"],
           "description": "Uses deprecated naive datetime.utcnow() and eval() on coupon metadata."
         },
         {
           "id": "H3",
           "lens": "simplicity",
-          "keywords": ["LegacyDiscountEngine", "dead", "unused", "delete"],
+          "anchors": ["LegacyDiscountEngine"],
+          "diagnosis": ["dead", "unused", "never called", "never used", "not called", "not used", "remove", "delete", "unreferenced", "no caller*"],
           "description": "Commits an unused LegacyDiscountEngine class that is never called."
         }
       ],
@@ -115,19 +124,22 @@
         {
           "id": "H4",
           "lens": "security",
-          "keywords": ["unverified_header", "alg", "confusion", "algorithms"],
+          "anchors": ["alg", "unverified", "get_unverified_header", "jwt"],
+          "diagnosis": ["confusion", "alg: none", "alg=none", "none algorithm", "attacker", "forge*", "spoof*", "pin*", "allowlist", "allow-list", "whitelist", "hardcode*", "downgrade"],
           "description": "JWT verification trusts `jwt.get_unverified_header(token)['alg']`, enabling algorithm confusion (`alg: none` or RS256 public key used as HS256 HMAC secret)."
         },
         {
           "id": "H5",
           "lens": "security",
-          "keywords": ["compare_digest", "timing", "==", "int(", "digits", "iteration"],
+          "anchors": ["compare_digest", "==", "int(", "pbkdf2", "digest", "iteration*", "iterations"],
+          "diagnosis": ["timing", "constant-time", "constant time", "side-channel", "side channel", "compare_digest", "dos", "denial", "unbounded", "huge", "oversized", "cpu"],
           "description": "PBKDF2 legacy verifier calls `int(parts[2])` before bounding length/ASCII digits (DoS vector on huge digit strings) and compares hex digests with `==` instead of `hmac.compare_digest`."
         },
         {
           "id": "H6",
           "lens": "conformance",
-          "keywords": ["72", "bytes", "encode", "utf-8", "character", "len(password)"],
+          "anchors": ["72", "len(password)", "bcrypt", "password"],
+          "diagnosis": ["byte length", "bytes", "utf-8", "utf8", "multi-byte", "multibyte", "characters", "truncat*", "encode(", "non-ascii"],
           "description": "Checks `len(password) > 72` in characters instead of UTF-8 byte length `len(password.encode('utf-8'))`, silently truncating multi-byte UTF-8 passwords (e.g., '€' x 25 = 75 bytes) at the 72-byte bcrypt boundary."
         }
       ],
