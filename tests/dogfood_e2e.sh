@@ -202,7 +202,8 @@ ln -s "$REPO_ROOT" "$TMP_PROJECT/vendor/damascus"
 consumer_status() { # repo status [installer]: assert the reported status (and that the repo's own installer ran)
     local out; out="$(damascus upgrade-consumers --repo "$1" --json)" || return 1
     grep -q "\"status\": \"$2\"" <<<"$out" || return 1
-    [ -z "${3:-}" ] || grep -q "\"installer\": \"$1/vendor/damascus/install.sh\"" <<<"$out"
+    # the tool reports resolved paths (macOS: /var -> /private/var), so compare against one
+    [ -z "${3:-}" ] || grep -q "\"installer\": \"$(cd "$1" && pwd -P)/vendor/damascus/install.sh\"" <<<"$out"
 }
 check "upgrade-consumers re-links and verifies a consumer with its own vendor/damascus" \
     consumer_status "$TMP_PROJECT" UPGRADED
