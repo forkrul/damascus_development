@@ -42,7 +42,7 @@ for agent in bdd-scenario-writer tdd-test-generator playwright-e2e-tester \
 done
 [ -L ".claude/skills/systematic-debugging" ] || fail "superpowers KEEP skills not linked"
 for deny in brainstorming writing-plans executing-plans requesting-code-review \
-            using-superpowers subagent-driven-development; do
+            using-superpowers subagent-driven-development diagnosing-superpowers; do
   [ -e ".claude/skills/$deny" ] && fail "DENY-class superpowers skill was linked: $deny"
 done
 

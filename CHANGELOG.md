@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Bump the `vendor/superpowers` pin from v6.3.0 to v7.0.0 and `vendor/spec-kit` from v1.0.6 to v1.2.0. The linked superpowers skills only gain small fixes (`test-driven-development` now asks for the project's whole suite before "done"; bundled scripts are invoked through their interpreter); the three spec-kit templates `anvil` falls back to are unchanged ([#26](https://github.com/forkrul/damascus_development/pull/26))
+- Classify the new superpowers skill `diagnosing-superpowers` as DENY: it analyses session transcripts to build upstream bug reports and is not a pipeline step, so it is never linked ([#26](https://github.com/forkrul/damascus_development/pull/26))
+
 ## [0.1.0] - 2026-10-16
 
 _Initial release._

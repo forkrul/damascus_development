@@ -178,7 +178,7 @@ Source: [`install.sh`](https://github.com/forkrul/damascus_development/blob/mast
 
 ## Superpowers policy
 
-Six upstream [obra/superpowers](https://github.com/obra/superpowers) skills are never
+Seven upstream [obra/superpowers](https://github.com/obra/superpowers) skills are never
 linked, because a stage replaces them or they route into one that does.
 
 ```mermaid
@@ -190,6 +190,7 @@ flowchart LR
         rcr[requesting-code-review]
         us[using-superpowers]
         sdd[subagent-driven-development]
+        ds[diagnosing-superpowers]
     end
     b --> forge
     wp --> anvil
