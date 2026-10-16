@@ -1,12 +1,30 @@
 # Damascus
 
-**Structured Prompt-Driven Development, or BDD/TDD carnival, or Spec-it-to-death.** A raw idea enters; folded, hardened, tested steel leaves. Damascus packages the SPDD pipeline — five gated stages plus an orchestrator — as skills you symlink into any repo.
+**Structured Prompt-Driven Development, or BDD/TDD carnival, or Spec-it-to-death.** A raw idea enters; folded, hardened, tested steel leaves.
+
+Damascus is a set of agent skills that take a feature from idea to merge-ready code through five gated stages: a PRD, a spec, an adversarially reviewed plan, test-first implementation, and an adversarially reviewed diff. You vendor it into your repo as a submodule, `install.sh` links the skills into your agent harness (Claude Code's `.claude/`, plus `.agents/` and `.gemini/`), and every stage writes its state to plain files you can read, review and resume from.
 
 ![The Damascus pipeline: a coke forge, an anvil, a tempered blade, a quenching tub and a whetstone](docs/assets/hero.png)
 
 <sub>Left to right: **forge** · **anvil** · **temper** · **quench** · **hone**.</sub>
 
-## The Pipeline
+## Quick start
+
+From your repo root, pinning a release tag (see [Releases](https://github.com/forkrul/damascus_development/releases) for the latest):
+
+```bash
+git submodule add https://github.com/forkrul/damascus_development.git vendor/damascus
+git -C vendor/damascus checkout v0.1.0        # pin a release, never a moving branch
+git submodule update --init --recursive
+./vendor/damascus/install.sh
+git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.0"
+```
+
+Then, in an agent session in that repo, start a feature with the orchestrator — in Claude Code, `/smithy` (or its alias `/spdd-pipeline`), or just say "let's build *feature X*" and ask for the smithy skill. Smithy runs the next stage, halts at every gate for your signoff, and picks up where it left off on `smithy --resume`. To see what a finished run looks like before starting one, read [`examples/`](examples/): one feature's complete artifact trail through all five gates.
+
+For one-line typos and hotfixes, skip the pipeline and just fix it — SPDD is for non-trivial work.
+
+## The pipeline
 
 | Stage | Skill | Alias | Input | Output |
 |-------|-------|-------|-------|--------|
@@ -30,7 +48,7 @@ flowchart LR
 
 **Golden Rule (Fowler):** when reality diverges from the prompt, fix the prompt before the code.
 
-Every stage halts at its gate for user signoff, leading with what needs your decision (waivers, rejected or open findings, unconfirmed assumptions); between gates it doesn't stop to report or offer to continue. State lives in the disk artifacts, so `smithy` can resume any feature from any point. For one-line typos and hotfixes: skip the pipeline and just fix it — SPDD is for non-trivial work.
+Every gate message leads with what needs your decision (waivers, rejected or open findings, unconfirmed assumptions); between gates a stage keeps working instead of stopping to report. State lives in the disk artifacts, so smithy is stateless and can resume any feature from any point.
 
 ### Which stage do I start at?
 
@@ -45,89 +63,81 @@ Smithy decides from what is on disk, and you can too:
 | every task checked and green in `quench-log.md` | `hone` |
 | any of the above, unsure which | `smithy --resume` |
 
-[`examples/`](examples/) holds one feature's complete artifact trail through all five gates — the `.prd/` file, the spec triplet, both review logs, the quench log and the smithy log — so you can see what each state looks like before you produce it.
+## How the gates hold
 
-### Temper & hone: the adversarial review loops
+**Adversarial review (temper and hone).** Each round, three critic subagents with distinct lenses try to *refute* the artifact, and a judge dedupes their findings and rates the round. Blocking findings are applied, the round is logged, and the loop repeats. **A++ requires two consecutive rounds with zero blocking findings.** If at least four distinct blocking findings were raised and under 25 % of them by two or more critics, more defects probably remain, so the round is capped at B+; nits never cap a round. A suspicion a critic can't demonstrate is logged UNCONFIRMED and checked next round. The critics and judge are the session's own subagents — no API key or network access is needed — and `damascus agent-run` can optionally route them to other models, stripping model and provider names so the judge rates findings blind.
 
-Both loops need **no external API**: critics and judge are the session's own subagents. `damascus agent-run` can optionally route them to any other model you run — local open-weight servers (Ollama, `llama.cpp` / `llama-server`, vLLM, LM Studio) or another agent CLI (`claude`, `gemini`, `codex`, `opencode`, `llm`) — and strips model/provider self-identification so the judge rates findings blind. Each round, three critic subagents with distinct lenses try to *refute* the artifact; a judge dedupes findings, computes an overlap signal over **blocking** findings only (`D_B` ≥ 4 distinct blocking findings with under 25 % raised by two or more critics = more defects remain → rating capped at B+; nits never cap a round with zero blocking findings), and assigns a rating. Blocking findings are applied, the round is logged, and the loop repeats. A suspicion a critic can't show is logged UNCONFIRMED and gets a targeted check in the next round; a round that carries one forward isn't clean. **A++ requires two consecutive rounds with zero blocking findings.**
+- **Temper** reviews the spec triplet (completeness, feasibility, testability & non-vacuity; at most 5 rounds). Critics attach evidence — re-derived sections, traced data flows, per-FR test skeletons, per-SC vacuity falsifiers; opinions without evidence are discarded. Trail: `specs/NNN-<slug>/review.md`.
+- **Hone** reviews the implementation diff (spec conformance, security, simplicity; at most 3 rounds) in units of at most 400 changed lines. Every blocking finding comes with a repro, fixes never touch tests, and each fix is shown to fail without itself: `damascus revert-proof` reverts it in an isolated worktree and must see the guarding test go RED (not GREEN, and not an INCONCLUSIVE import error), and `damascus proof-coverage` checks that every changed production file has such a proof. Trail: `specs/NNN-<slug>/code-review.md`.
 
-- **Temper** reviews the *spec triplet* (lenses: completeness, feasibility, testability & non-vacuity; max 5 rounds). Each critic runs an active procedure — re-deriving sections, tracing a data flow, drafting per-FR test skeletons + per-SC vacuity falsifiers — and attaches the artifact; opinions without evidence are discarded. Trail: `specs/NNN-<slug>/review.md`, append-only.
-- **Hone** reviews the *implementation diff* the same way (lenses: spec-conformance, security, simplicity; max 3 rounds), task by task in **≤400-changed-line units**, after quench's tests and gates are green. Every blocking finding comes with a repro; fixes never touch tests. Each fix is shown to fail without itself, mechanically: `damascus revert-proof` reverts it in an isolated worktree and must see the guarding test go RED (not GREEN, not an INCONCLUSIVE import error), and `damascus proof-coverage` checks every changed production file has such a proof. Trail: `specs/NNN-<slug>/code-review.md`, append-only.
+**Red-amber-green (quench).** Standard TDD goes red → green. Quench inserts **amber**: the test must fail *for the right reason* (the assertion you care about, not an import error) before any implementation is written. Amber is when the test is trusted, and when it is **frozen** (`damascus test-lock lock`): from then on a test changes only after the spec does, and the implementing agent never edits tests (`damascus test-lock verify`). At green, quench runs hardening gates — `damascus bdd-check` (every `.feature` scenario is bound), mutation testing scoped to the diff, the host repo's static, type and security checks, an FR/INV ↔ test traceability sweep, and stable-green (new tests pass 3× in random order). Every transition, gate result and waiver lands in `specs/NNN-<slug>/quench-log.md`.
 
-### Finish step: docs + optional Atlas survey
+**Finish step.** Once hone reaches A++, smithy updates `README.md` and `CHANGELOG.md` for the feature and, if an `atlas` skill is installed, runs it for an intent-vs-reality survey. Atlas is not vendored; where it is missing the step is skipped silently.
 
-Once `hone` reaches A++, `smithy` runs a final finish step before the merge handoff: it updates `README.md` and `CHANGELOG.md` for the completed feature, then — **if the `atlas` skill is available in the consumer's environment** — invokes Atlas scoped to that feature to produce an intent-vs-reality survey for the handover. Atlas is not vendored by Damascus; where it is not installed the step is a silent no-op, exactly like the optional kanban sync.
+## Install, verify, upgrade
 
-## Documentation
+`install.sh` links, relative and idempotent:
 
-[`docs/`](docs/) is a Sphinx site that also reads on GitHub. [Architecture](docs/architecture.md) draws the contracts as mermaid diagrams — smithy's state machine, the adversarial review round, red-amber-green, parallel `[P]` tasks, how `install.sh` places a link. The stage, agent, example and changelog pages are generated at build time from the files that ship, so the docs cannot drift from the contracts your agents load. Build it locally (CI runs the same command and fails on any warning):
+- the 6 stage skills and 6 aliases → `.claude/skills/` (and `.agents/skills/`)
+- 5 quench agents (`bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`) → `.claude/agents/` (and `.agents/agents/`)
+- the KEEP-class [obra/superpowers](https://github.com/obra/superpowers) skills (see the policy below) → `.claude/skills/`
+
+`.agents/` and `.gemini/` are populated when they already exist, or always with `--all-harnesses`. Every link is relative, so a committed `.claude/` works on every clone. Re-running refreshes links and prunes damascus-owned links that are no longer shipped; the script never touches a file it doesn't own, and exits non-zero if a link can't be placed.
 
 ```bash
-pip install -r docs/requirements.txt
-sphinx-build -W --keep-going -n -b html docs docs/_build/html
+./vendor/damascus/install.sh --verify         # link health report; exit 1 if repair is needed
+./vendor/damascus/install.sh --dry-run        # print planned actions, touch nothing
+./vendor/damascus/install.sh --uninstall      # remove everything it owns and nothing else
+./vendor/damascus/install.sh --all-harnesses  # also create and link .agents/ and .gemini/
 ```
 
-The toolchain is docs-only; `install.sh` and consumers need none of it.
+To upgrade, check out the new tag and re-run the installer:
+
+```bash
+git -C vendor/damascus fetch --tags
+git -C vendor/damascus checkout vX.Y.Z
+git submodule update --init --recursive
+./vendor/damascus/install.sh
+git add vendor/damascus && git commit -m "chore: bump damascus to vX.Y.Z"
+```
+
+[CHANGELOG.md](CHANGELOG.md) calls out breaking changes to skill contracts or `install.sh` behavior; while pre-1.0 they bump the minor version.
+
+## Command line
+
+The skills call the mechanized gates as `damascus <cmd>`, which means this checkout's `install.sh <cmd>` — from a consumer repo root, `vendor/damascus/install.sh <cmd>`. No global `damascus` command is installed. All of them are Python standard library only.
+
+| Command | What it does |
+|---------|--------------|
+| `agent-run` | send a critic, judge or implementer prompt to a local model server, Ollama or another agent CLI; `--probe` lists what is reachable |
+| `test-lock` | freeze tests at amber (SHA-256 manifest) and verify them at green |
+| `bdd-check` | fail when a `.feature` file has no scenario or no step runner bound to it |
+| `revert-proof` | revert a fix in an isolated worktree and classify its test RED / GREEN / INCONCLUSIVE |
+| `proof-coverage` | fail when a changed production file has no RED revert-proof |
+| `upgrade-consumers` | inspect or upgrade other repos' damascus installs |
+| `eval` | score this repo's skills and gates; `--live-llm` benchmarks a real critic model |
+
+Each takes `--help`. Flags, model routing (`.damascus/models.conf` and `DAMASCUS_*` variables), stage addenda and the evaluation harness are covered in the [configuration and CLI reference](docs/reference.md).
 
 ## Requirements
 
 - git ≥ 2.13 (submodules)
 - bash 3.2+ (`install.sh` runs on stock macOS bash)
-- python 3.9+ (for mechanized CLI verifiers & `damascus agent-run`; standard library only, zero pip dependencies)
+- python 3.9+ for the `damascus` commands (standard library only)
 - a filesystem with symlink support
-- for `quench`'s shipped agents: a **Python / pytest / FastAPI** host, plus Playwright for `[UX]` tasks. The pipeline and its gates are stack-agnostic; on another stack quench dispatches general subagents under the same red-amber-green contract (see the dispatch table in `skills/quench/SKILL.md`)
+- for quench's shipped agents: a **Python / pytest / FastAPI** host, plus Playwright for `[UX]` tasks. The pipeline and its gates are stack-agnostic; on another stack quench dispatches general subagents under the same red-amber-green contract (see the dispatch table in [`skills/quench/SKILL.md`](skills/quench/SKILL.md))
 
-## Install
+## Optional host-repo integrations
 
-From your repo root, pinning a release tag:
+Each is used when present and skipped silently when not:
 
-```bash
-git submodule add <this-repo-url> vendor/damascus
-git -C vendor/damascus checkout v0.1.0        # pin a release, not a moving branch
-git submodule update --init --recursive
-./vendor/damascus/install.sh
-git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.0"
-```
+- **Stage addenda** (`.damascus/addenda/<stage>.md`) — add domain norms, gates or a fourth critic lens (`critic-d`) to a stage without forking it
+- **Model routing** (`.damascus/models.conf`) — send critics, judge or implementer to particular local models or agent CLIs via `damascus agent-run`
+- **Board projection** — if your repo has a kanban/state sync script, each stage gate runs it once
+- **Phase signalling** — if your repo has a status-bar helper (e.g. tmux), quench calls it at red/amber/green transitions
+- **Drift detection** — if a pre-commit hook flags code changes without spec changes, smithy halts on it
 
-This symlinks into your `.claude/` (and `.agents/` / `.gemini/` when present or when `--all-harnesses` is passed):
-
-- the 6 stage skills + 6 aliases → `.claude/skills/` (and `.agents/skills/`)
-- 5 quench agents (`bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`) → `.claude/agents/` (and `.agents/agents/`)
-- the KEEP-class [obra/superpowers](https://github.com/obra/superpowers) skills (see policy below) → `.claude/skills/`
-
-Every link is relative, so a committed `.claude/` keeps working on every clone. Re-run any time to refresh; the install prunes damascus-owned links whose names are no longer shipped, and exits non-zero if any link could not be placed (a non-damascus file in the way, or an upstream skill that vanished). Other modes and the mechanized subcommands:
-
-```bash
-./vendor/damascus/install.sh --all-harnesses  # also link .agents/{skills,agents} and .gemini/{skills,agents}
-./vendor/damascus/install.sh --verify         # link health report; exit 1 if repair is needed
-./vendor/damascus/install.sh --dry-run        # print planned actions, touch nothing
-./vendor/damascus/install.sh --uninstall      # removes everything it owns and nothing else
-./vendor/damascus/install.sh --print-root     # print canonical damascus checkout path
-
-# Model-agnostic dispatch & mechanized verification subcommands:
-./vendor/damascus/install.sh agent-run --probe
-./vendor/damascus/install.sh test-lock lock --task T001
-./vendor/damascus/install.sh bdd-check
-./vendor/damascus/install.sh revert-proof --cases specs/001/cases.json --report-out specs/001/rp.json
-./vendor/damascus/install.sh proof-coverage --base-ref HEAD~1 --report specs/001/rp.json
-./vendor/damascus/install.sh eval             # run Damascus meta-autoresearch evaluation suite
-```
-
-`--verify` output is the first thing to include in a bug report.
-
-## Upgrading
-
-```bash
-git -C vendor/damascus fetch --tags
-git -C vendor/damascus checkout v0.2.0     # the new release
-git submodule update --init --recursive
-./vendor/damascus/install.sh               # idempotent: refreshes and prunes
-git add vendor/damascus && git commit -m "chore: bump damascus to v0.2.0"
-```
-
-Breaking changes to skill contracts or `install.sh` behavior are called out in [CHANGELOG.md](CHANGELOG.md) and, past 1.0, bump the major version.
-
-## Vendored Submodules
+## Vendored submodules
 
 | Submodule | Pin | Role |
 |-----------|-----|------|
@@ -136,7 +146,7 @@ Breaking changes to skill contracts or `install.sh` behavior are called out in [
 
 CI checks that each pointer sits exactly on an upstream tag and that this table names it, so a bump is always deliberate: check out the tag, update the row, note it in the changelog.
 
-## Superpowers Policy (DENY / KEEP / CONDITIONAL)
+## Superpowers policy (DENY / KEEP / CONDITIONAL)
 
 The pipeline stages are the canonical entrypoints. Seven upstream skills are **DENY** — not linked at install — because they overlap a stage or route back into a skill that does; each stage skill carries redirect language. CI fails when an upstream skill has no row here and is not in `install.sh`'s KEEP list, so a new upstream skill must be classified before a bump merges.
 
@@ -152,44 +162,38 @@ The pipeline stages are the canonical entrypoints. Seven upstream skills are **D
 | `test-driven-development` | CONDITIONAL | linked; quench **overrides** its red-green cycle with red-amber-green |
 | remaining 7 skills | KEEP | linked as-is (`systematic-debugging`, `dispatching-parallel-agents`, `verification-before-completion`, `receiving-code-review`, `finishing-a-development-branch`, `using-git-worktrees`, `writing-skills`) |
 
-**Red-amber-green:** standard TDD goes red → green. Quench inserts **amber** — the test must fail *for the right reason* (the assertion you care about, not an import error) before any implementation is written. Amber is the moment you trust the test — and the moment it **mechanically freezes** (`damascus test-lock lock`): from amber on, a test changes only after the spec changes first, and the implementing agent never edits tests at all (`damascus test-lock verify`). At green, quench runs **hardening gates**: `damascus bdd-check` (confirming `.feature` scenarios are bound), mutation testing scoped to the diff, the host repo's static/type/security checks, an FR/INV ↔ test traceability sweep, and a stable-green rule (new tests pass 3× in randomized order). Every red/amber/green transition, gate result, and waiver lands in `specs/NNN-<slug>/quench-log.md`.
+## Documentation and layout
 
-## Layout
+[`docs/`](docs/) is a Sphinx site that also reads on GitHub. [Architecture](docs/architecture.md) draws the contracts as diagrams — smithy's state machine, the review round, red-amber-green, parallel `[P]` tasks, how `install.sh` places a link — and the [reference](docs/reference.md) covers configuration and the command line. The stage, agent, example and changelog pages are generated at build time from the files that ship, so the docs can't drift from the contracts your agents load. To build it (CI runs the same command and fails on any warning):
+
+```bash
+pip install -r docs/requirements.txt
+sphinx-build -W --keep-going -n -b html docs docs/_build/html
+```
 
 ```
 skills/{forge,anvil,temper,quench,hone,smithy}/SKILL.md   the six skills (5 stages + orchestrator)
 skills/<alias> -> <stage>                                 invocation aliases
 agents/*.md                                               quench's dispatch agents (model: inherit, ≤150 lines)
-scripts/damascus-*                                        model-agnostic runner + mechanized verification gates
-evals/                                                    scored evaluation harness (./install.sh eval) + seeded-defect corpus
+scripts/damascus-*                                        the damascus commands: model runner + mechanized gates
+evals/                                                    evaluation harness (./install.sh eval) + seeded-defect corpus
 examples/cart-discounts/                                  one feature's full artifact trail, gate by gate
-references/                                               research notes behind the v0.2 changes
-docs/                                                     Sphinx site: architecture diagrams + pages generated from the files above
-vendor/superpowers                                        pinned submodule
-vendor/spec-kit                                           pinned submodule
-install.sh                                                consumer-side symlinker & subcommand dispatcher
+references/                                               research notes behind the design
+docs/                                                     Sphinx site: architecture, reference, generated pages
+vendor/superpowers, vendor/spec-kit                       pinned submodules
+install.sh                                                installer and command dispatcher
 ```
 
-## Optional host-repo integrations
+## Support and license
 
-The skills degrade gracefully — each of these is used when present and skipped silently when not:
+Maintained by one person; issues are welcome and responses are best-effort. When reporting an installer problem, include your OS, `bash --version` and the output of `install.sh --verify`.
 
-- **Composable domain addenda (`.damascus/addenda/<stage>.md`)** — attach domain-specific norms, extra critic lenses (`critic-d`), or custom hardware/security gates to any stage without forking Damascus skills
-- **Model routing (`.damascus/models.conf`)** — route critics, judge, or implementer roles to specific local models (Ollama, `llama.cpp`, `vLLM`) or cloud CLIs via `damascus agent-run`
-- **Board projection** — if your repo has a kanban/state sync script, each stage gate runs it once
-- **Phase signalling** — if your repo has a status-bar helper (e.g. tmux), quench calls it at red/amber/green transitions
-- **Drift detection** — if a pre-commit hook flags code changes without spec changes, smithy halts on it
+MIT licensed (see [LICENSE](LICENSE)). The vendored submodules `vendor/superpowers` and `vendor/spec-kit` keep their own upstream licenses.
 
-## Support & license
-
-Maintained by one person; issues are welcome and responses are best-effort. Please include your OS, `bash --version`, and `install.sh --verify` output when reporting installer problems.
-
-MIT licensed (see [LICENSE](LICENSE)). The vendored submodules `vendor/superpowers` and `vendor/spec-kit` retain their own upstream licenses and are not relicensed by this repo.
-
-## Credits & Research Corpus
+## Credits and research
 
 - Martin Fowler & Thoughtworks — [*Structured Prompt-Driven Development*](https://martinfowler.com/articles/structured-prompt-driven/) (REASONS Canvas, Golden Rule)
 - Andrej Karpathy — [*autoresearch*](https://github.com/karpathy/autoresearch) (`program.md`, immutable evaluation harnesses, keep/revert ratcheting)
-- Full bibliography & empirical field studies: [`references/README.md`](references/README.md)
 - [obra/superpowers](https://github.com/obra/superpowers) — process-discipline skills
 - [github/spec-kit](https://github.com/github/spec-kit) — spec-driven development toolkit
+- Bibliography and field notes: [`references/README.md`](references/README.md)

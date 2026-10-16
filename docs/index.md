@@ -1,15 +1,18 @@
 # damascus
 
-**Structured Prompt-Driven Development as Claude Code skills.** A raw idea enters; folded,
+**Structured Prompt-Driven Development as agent skills.** A raw idea enters; folded,
 hardened, tested steel leaves: five gated stages — forge → anvil → temper → quench → hone —
-orchestrated by smithy and symlinked into any repo by `install.sh`.
+orchestrated by smithy and symlinked into any repo's agent harness (`.claude/`, `.agents/`,
+`.gemini/`) by `install.sh`.
 
 ![The Damascus pipeline: a coke forge, an anvil, a tempered blade, a quenching tub and a whetstone](assets/hero.png)
 
 The stage and agent pages below are generated at build time from the files that
 ship — `skills/*/SKILL.md` and `agents/*.md` — so the contract you read here is the
 contract your agents load. [Architecture](architecture.md) draws the same contracts as
-diagrams.
+diagrams, and the [reference](reference.md) covers configuration and the `damascus`
+commands. New here? Start with the overview (the README): quick start, the pipeline, and
+which stage to start at.
 
 ```{toctree}
 :caption: Start here
@@ -17,6 +20,7 @@ diagrams.
 
 _generated/overview
 architecture
+reference
 ```
 
 ```{toctree}
