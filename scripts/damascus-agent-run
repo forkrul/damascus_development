@@ -439,7 +439,7 @@ def select_backend_and_model(
             model = (
                 probed["ollama"]["models"][0]
                 if probed["ollama"]["models"]
-                else os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:14b")
+                else os.environ.get("OLLAMA_MODEL")
             )
 
     return backend, model, endpoint_url
@@ -546,9 +546,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif backend == "ollama":
         assert endpoint_url is not None
+        if not model:
+            sys.stderr.write(
+                "[ERR] agent-run: no Ollama model to use — none is pulled; pass --model, "
+                "set OLLAMA_MODEL, or set <ROLE>_MODEL / DEFAULT_MODEL in .damascus/models.conf\n"
+            )
+            return 1
         output = run_ollama(
             endpoint_url,
-            model or "qwen2.5-coder:14b",
+            model,
             system_prompt,
             user_prompt,
             args.temperature,

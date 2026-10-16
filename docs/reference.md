@@ -89,7 +89,8 @@ CRITIC_C_MODEL=<an-ollama-model>
 
 `LOCAL_OPENAI_URL` in the file sets the server URL when no environment variable does.
 Without a model name, `local-openai` uses the first model the server lists and `ollama`
-the first model Ollama has pulled.
+the first model Ollama has pulled, else `OLLAMA_MODEL`; with none of these, an Ollama call
+stops with an error rather than guessing a model.
 
 ### Environment variables
 
@@ -98,6 +99,7 @@ the first model Ollama has pulled.
 | `DAMASCUS_LOCAL_URL`, `OPENAI_BASE_URL` | the OpenAI-compatible server's base URL (e.g. `http://127.0.0.1:8080/v1`) |
 | `DAMASCUS_API_KEY`, `OPENAI_API_KEY` | that server's API key, if it needs one |
 | `OLLAMA_HOST` | Ollama's URL (default `http://127.0.0.1:11434`) |
+| `OLLAMA_MODEL` | the Ollama model to use when none is configured and Ollama lists none |
 | `DAMASCUS_CUSTOM_CMD` | the command line for `--backend custom`; it receives the prompt on stdin |
 | `DAMASCUS_<ROLE>_BACKEND`, `DAMASCUS_<ROLE>_MODEL`, `DAMASCUS_BACKEND`, `DAMASCUS_MODEL` | routing overrides (table above) |
 
@@ -172,20 +174,21 @@ damascus proof-coverage --base-ref HEAD~3 --report specs/001-x/revert-proof.json
 
 ## `upgrade-consumers`
 
-Reports on, and re-links, other repos that use damascus: for each one it runs
-`install.sh --all-harnesses` and then `--verify`. Read-only checkouts are reported and
-skipped. It does not move anyone's `vendor/damascus` pin.
+Reports on, and re-links, other repos that use damascus: for each one it runs that repo's
+own `vendor/damascus/install.sh --all-harnesses` and then `--verify`, so its links keep
+pointing at its own pinned submodule. It does not move anyone's pin — bump that first.
+Read-only checkouts are reported and skipped, and so is a repo without
+`vendor/damascus` (`SKIPPED_NO_VENDOR`). It exits 1 if any install or verify failed.
 
 ```bash
 damascus upgrade-consumers --scan-dir ~/src --check     # report only: harnesses, pinned commit, writability
 damascus upgrade-consumers --repo ../shop-api           # re-link one repo (repeatable)
 ```
 
-It runs the `install.sh` of the damascus checkout you invoke it from, and links always
-point at that checkout. To keep a repo linked to its own pinned submodule, bump the pin,
-then run its own installer (`vendor/damascus/install.sh`) or invoke `upgrade-consumers`
-from that submodule with `--repo .`. `--dry-run` passes `--dry-run` to each install,
-`--claude-only` links `.claude/` only, and `--json` prints a machine-readable report.
+`--link-to-this-checkout` links a repo that has no `vendor/damascus` to the checkout
+running the command instead; those links leave the repo, so a fresh clone of it won't
+have them. `--dry-run` passes `--dry-run` to each install, `--claude-only` links
+`.claude/` only, and `--json` prints a machine-readable report.
 
 ## Stage addenda: `.damascus/addenda/<stage>.md`
 

@@ -4,7 +4,10 @@
 Supports:
   - Scanning a directory of repositories (--scan-dir) or inspecting explicit ones (--repo)
   - Gracefully detecting read-only bind mounts vs. writable consumer checkouts
-  - Running `install.sh --all-harnesses` and `install.sh --verify` across writable consumers
+  - Running each consumer's own `vendor/damascus/install.sh --all-harnesses` and `--verify`,
+    so its links keep pointing at its pinned submodule. A repo without `vendor/damascus` is
+    skipped unless `--link-to-this-checkout` is given, which links it to the checkout running
+    this command instead (links that leave the repo, so a fresh clone of it won't have them).
 """
 from __future__ import annotations
 
@@ -58,7 +61,18 @@ def inspect_consumer(repo: Path) -> dict[str, Any]:
     }
 
 
-def upgrade_consumer(repo: Path, all_harnesses: bool = True, dry_run: bool = False) -> dict[str, Any]:
+def consumer_installer(repo: Path, link_to_this_checkout: bool) -> Path | None:
+    """The install.sh to run for a consumer: its own pinned vendor/damascus, else (only when
+    asked) this checkout's. install.sh links into the checkout it lives in."""
+    own = repo / "vendor" / "damascus" / "install.sh"
+    if own.is_file():
+        return own
+    return INSTALL_SH if link_to_this_checkout else None
+
+
+def upgrade_consumer(
+    repo: Path, all_harnesses: bool = True, dry_run: bool = False, link_to_this_checkout: bool = False
+) -> dict[str, Any]:
     info = inspect_consumer(repo)
     if not info["exists"]:
         info["status"] = "SKIPPED_MISSING"
@@ -66,8 +80,13 @@ def upgrade_consumer(repo: Path, all_harnesses: bool = True, dry_run: bool = Fal
     if not info["writable"] and not dry_run:
         info["status"] = "SKIPPED_READONLY_MOUNT"
         return info
+    installer = consumer_installer(repo, link_to_this_checkout)
+    if installer is None:
+        info["status"] = "SKIPPED_NO_VENDOR"
+        return info
+    info["installer"] = str(installer)
 
-    cmd = ["bash", str(INSTALL_SH)]
+    cmd = ["bash", str(installer)]
     if all_harnesses:
         cmd.append("--all-harnesses")
     if dry_run:
@@ -81,7 +100,7 @@ def upgrade_consumer(repo: Path, all_harnesses: bool = True, dry_run: bool = Fal
         return info
 
     if not dry_run:
-        ver = subprocess.run(["bash", str(INSTALL_SH), "--verify"], cwd=str(repo), text=True, capture_output=True)
+        ver = subprocess.run(["bash", str(installer), "--verify"], cwd=str(repo), text=True, capture_output=True)
         info["verify_returncode"] = ver.returncode
         info["status"] = "UPGRADED" if ver.returncode == 0 else "VERIFY_FAILED"
         info["harnesses"] = {
@@ -99,7 +118,7 @@ def upgrade_consumer(repo: Path, all_harnesses: bool = True, dry_run: bool = Fal
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="damascus upgrade-consumers",
-        description="Inspect and upgrade downstream Damascus consumer repositories to this damascus checkout.",
+        description="Inspect and re-link downstream Damascus consumer repositories, each with its own vendor/damascus installer.",
     )
     parser.add_argument(
         "--repo",
@@ -126,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Link only .claude/ instead of --all-harnesses (.claude, .agents, .gemini).",
     )
+    parser.add_argument(
+        "--link-to-this-checkout",
+        action="store_true",
+        help="For a repo without vendor/damascus, link it to this checkout instead of skipping it.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON output.")
     args = parser.parse_args(argv)
 
@@ -148,7 +172,14 @@ def main(argv: list[str] | None = None) -> int:
             info["status"] = "WRITABLE" if info["writable"] else "READONLY_MOUNT"
             results.append(info)
         else:
-            results.append(upgrade_consumer(repo, all_harnesses=not args.claude_only, dry_run=args.dry_run))
+            results.append(
+                upgrade_consumer(
+                    repo,
+                    all_harnesses=not args.claude_only,
+                    dry_run=args.dry_run,
+                    link_to_this_checkout=args.link_to_this_checkout,
+                )
+            )
 
     if args.json:
         print(json.dumps({"damascus_root": str(DAMASCUS_ROOT), "consumers": results}, indent=2))
@@ -158,8 +189,10 @@ def main(argv: list[str] | None = None) -> int:
             harnesses = ",".join(k for k, v in r["harnesses"].items() if v) or "none"
             hone_str = "hone=yes" if r["has_v02_hone_skill"] else "hone=no"
             print(f"  [{r['status']:22s}] {r['name']:24s} harnesses={harnesses:22s} {hone_str}")
+        if any(r["status"] == "SKIPPED_NO_VENDOR" for r in results):
+            print("  SKIPPED_NO_VENDOR: no vendor/damascus/install.sh; pass --link-to-this-checkout to link to this checkout")
 
-    return 0
+    return 1 if any(r["status"] in ("FAILED", "VERIFY_FAILED") for r in results) else 0
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 
 Enforces the `quench` Test Freeze Rule:
 - At the end of Amber (Step 3), run `damascus-test-lock lock` to record SHA-256
-  digests of all test files into `.damascus/locks/amber-tests.sha256`.
+  digests of all test files into `.damascus/locks/amber-tests.sha256.json`.
 - At Green (Step 4), run `damascus-test-lock verify` to confirm zero silent
   modifications, deletions, or weakened assertions occurred in locked tests
   during implementation.

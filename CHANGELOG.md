@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- Make `upgrade-consumers` run each repo's own `vendor/damascus/install.sh`, so its links keep pointing at its pinned submodule instead of the checkout running the command; skip a repo without one unless `--link-to-this-checkout` is given, and exit 1 when an install or verify fails ([#29](https://github.com/forkrul/damascus_development/pull/29))
+- Cap a review round at B+ in the eval's reference adjudicator at under 25 % overlap, as the temper and hone skills specify, instead of 20 % ([#29](https://github.com/forkrul/damascus_development/pull/29))
+- Stop `damascus agent-run` from falling back to a hardcoded Ollama model name; with no model pulled, configured or in `OLLAMA_MODEL`, it now says so and exits 1 ([#29](https://github.com/forkrul/damascus_development/pull/29))
+- Correct the `test-lock` manifest name in its docstring to `.damascus/locks/amber-tests.sha256.json` ([#29](https://github.com/forkrul/damascus_development/pull/29))
 - Fix the README's install and upgrade snippets, which committed whatever `master` was instead of the pinned tag: initialise damascus's submodules from inside `vendor/damascus` rather than from the repo root ([#28](https://github.com/forkrul/damascus_development/pull/28))
 - Make `./install.sh eval --live-llm` measure something: a seeded defect now counts only when a `[BLOCKING]` finding names it and diagnoses it in words absent from the prompt. Before, any keyword anywhere in the reply counted, and echoing the prompt scored 12/12. The clean control is now scored for false positives, the echo baseline is reported, and every prompt and raw reply is saved under `.damascus/eval-runs/`. The corpus `keywords` field becomes `anchors` + `diagnosis` (corpus 0.3.0) ([#27](https://github.com/forkrul/damascus_development/pull/27))
 - Fix the clean control's FR-001, which did not say how to round, so INV-001 failed for sub-cent subtotals; it now rounds down ([#27](https://github.com/forkrul/damascus_development/pull/27))
