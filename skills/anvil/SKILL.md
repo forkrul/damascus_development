@@ -42,16 +42,17 @@ Anvil **MUST refuse to start** if any of the following fail:
 4. No `[ASSUMED]` markers remain unconfirmed
 
 If any check fails: print the failure, point at `forge`, and stop.
+If the host repository defines `.damascus/addenda/anvil.md`, read it before drafting and apply its domain-specific decomposition constraints.
 
 ## Output Contract
 
 A directory `specs/NNN-<feature-slug>/` containing:
 
-- `spec.md` — user stories, functional requirements (`FR-NNN`), success criteria (`SC-NNN`), assumptions, dependencies
+- `spec.md` — user stories, functional requirements (`FR-NNN`, each tagged `[DELTA]` for changed/new behavior that must fail against `HEAD` at Amber, or `[INVARIANT]` for preserved existing behavior verified via characterization tests), invariant safeguards (`INV-NNN` carried over from PRD `Must-not` items), success criteria (`SC-NNN` with concrete falsification conditions), assumptions, dependencies
 - `plan.md` — REASONS-Canvas-structured: one section per REASONS letter, plus a "Phases" section that lists ordered phases of work
-- `tasks.md` — task list with format `[ID] [P?] [Story] [Tag?] Description` (P = parallel-safe: touches no file another task in its phase touches and needs no other unchecked task in that phase — quench may run these side by side; Story = which user story it belongs to; optional tags: `[UX]` browser-facing → Playwright in quench, `[REFACTOR]` changes existing behavior → characterization tests first, `[HARD]` genuinely tricky → quench's sample-and-select). Each task has: file paths to touch, FR(s) it satisfies, gate criteria.
+- `tasks.md` — task list with format `[ID] [P?] [Story] [Tag?] Description` (P = parallel-safe: touches no file another task in its phase touches and needs no other unchecked task in that phase — quench may run these side by side; Story = which user story it belongs to; optional tags: `[UX]` browser-facing → Playwright in quench, `[REFACTOR]` changes existing behavior-bearing code and `[INVARIANT]` must leave it unchanged → characterization tests first, `[HARD]` genuinely tricky → quench's sample-and-select or bounded autoresearch ratchet). Each task has: file paths to touch, `Satisfies: FR-NNN[, INV-NNN]` linkage, and `Gate:` criteria.
 
-**Task sizing budget:** cut every task so its implementation diff stays under **~400 changed lines** — the largest unit `hone`'s reviewers (or any reviewer) can inspect reliably. A task you can't describe in one sentence, or that touches more than a handful of files, gets split. Quench logs actual diff sizes per task; oversized tasks come back as anvil feedback.
+**Task sizing budget:** cut every task so its implementation diff stays under **~400 changed lines** — the largest unit `hone`'s reviewers (or any reviewer, especially local models) can inspect reliably. A task you can't describe in one sentence, or that touches more than a handful of files, gets split. Quench logs actual diff sizes per task; oversized tasks come back as anvil feedback.
 
 NNN is the next available sequence number under `specs/`.
 
@@ -67,7 +68,7 @@ Reverse order leaks information; later artifacts derive from earlier ones.
 
 ## Slash-Command Path (preferred)
 
-If GitHub spec-kit slash commands are available in this Claude Code session, use them:
+If GitHub spec-kit slash commands are available in this session, use them:
 
 ```
 /speckit.specify  — generates spec.md from the PRD
@@ -75,7 +76,7 @@ If GitHub spec-kit slash commands are available in this Claude Code session, use
 /speckit.tasks    — generates tasks.md from plan.md
 ```
 
-**To check availability:** look for `.claude/commands/speckit.*` files in the host repo or check the active plugins. If `/speckit.specify` does not autocomplete, use the fallback below.
+**To check availability:** look for `.claude/commands/speckit.*` or `.agents/commands/speckit.*` files in the host repo or check the active plugins. If `/speckit.specify` does not autocomplete, use the fallback below.
 
 ## Fallback Path (vendored spec-kit templates)
 
@@ -87,10 +88,12 @@ vendor/spec-kit/templates/plan-template.md   → basis for plan.md
 vendor/spec-kit/templates/tasks-template.md  → basis for tasks.md
 ```
 
-The templates live in the damascus checkout. If the skill is installed as a symlink, resolve the real path first (portable — no `readlink -f`, which stock macOS lacks):
+The templates live in the damascus checkout. If the skill is installed as a symlink, resolve the real path first (portable — no `readlink -f`, which stock macOS lacks), from whichever harness directory it is installed in:
 
 ```bash
-DAMASCUS="$(cd "$(cd .claude/skills/anvil && pwd -P)/../.." && pwd)"
+for h in .claude .agents .gemini; do
+  [ -d "$h/skills/anvil" ] && DAMASCUS="$(cd "$(cd "$h/skills/anvil" && pwd -P)/../.." && pwd)" && break
+done
 ls "$DAMASCUS/vendor/spec-kit/templates/"
 ```
 
@@ -98,9 +101,9 @@ If `vendor/spec-kit/` is empty, the submodule is not initialized — run `git su
 
 **Adaptation rules when filling the templates:**
 
-- `spec.md`: keep user stories, `FR-NNN` functional requirements, `SC-NNN` success criteria. Every FR must trace to a user story; every SC must name how it is verified.
+- `spec.md`: keep user stories, `FR-NNN` functional requirements (tagged `[DELTA]` or `[INVARIANT]`), `INV-NNN` safeguard invariants, and `SC-NNN` success criteria. Every FR must trace to a user story; every SC must name how it is verified and what single-line mutation or stub would falsify it (non-vacuity).
 - `plan.md`: replace the template's technical-context body with the 7-section REASONS Canvas (Requirements, Entities, Approach, Structure, Operations, Norms, Safeguards) followed by ordered Phases.
-- `tasks.md`: keep spec-kit's `T001`-style IDs and `[P]` parallel markers; add `[Story]` linkage, the optional `[UX]`/`[REFACTOR]`/`[HARD]` tags, and a `Satisfies: FR-NNN` + `Gate:` line per task.
+- `tasks.md`: keep spec-kit's `T001`-style IDs and `[P]` parallel markers; add `[Story]` linkage, the optional `[UX]`/`[REFACTOR]`/`[INVARIANT]`/`[HARD]` tags, and a `Satisfies: FR-NNN[, INV-NNN]` + `Gate:` line per task.
 
 ## Refusal Behavior
 
@@ -113,7 +116,7 @@ If the user pushes you to skip the PRD ("just make me a spec"), explain: forging
 - **Don't generate spec/plan/tasks in parallel.** Order matters: spec → plan → tasks. Later artifacts derive from earlier ones; reversing leaks information.
 - **Don't write code or pseudocode in any of the three artifacts.** Tasks reference file paths and describe steps; they do not contain implementation. Code belongs to `quench`.
 - **Don't paper over PRD gaps with assumptions inside spec.md.** If a question only emerges here, return to the PRD, fix it, then resume. Otherwise the gap propagates downstream.
-- **Don't skip the FR ↔ task mapping check.** Every FR must map to ≥1 task; every task must declare which FR(s) it satisfies. An unmapped FR will be invisible during temper.
+- **Don't skip the FR ↔ task mapping check.** Every FR and `INV-NNN` safeguard must map to ≥1 task; every task must declare which FR(s)/INV(s) it satisfies. An unmapped FR will be invisible during temper.
 - **Don't invent your own task ID scheme.** Use `T001, T002, …`; downstream stages (temper, smithy) parse this format.
 - **Don't invoke `superpowers:writing-plans`.** It is DENY-listed. Use anvil's spec-kit path (slash commands or vendored templates) instead.
 - **Don't proceed to temper without committing the artifacts.** Uncommitted artifacts mean temper might iterate on stale state.
@@ -123,10 +126,10 @@ If the user pushes you to skip the PRD ("just make me a spec"), explain: forging
 Anvil is **complete** when:
 
 - [ ] `spec.md`, `plan.md`, `tasks.md` all exist under `specs/NNN-<slug>/`
-- [ ] Each FR in spec.md maps to at least one task in tasks.md
-- [ ] Each task in tasks.md has explicit file paths and satisfies-FR linkage
-- [ ] Tasks are sized for a ≤400-changed-line diff; behavior-changing tasks tagged `[REFACTOR]`, genuinely tricky ones `[HARD]`
-- [ ] plan.md REASONS Canvas is complete (all 7 sections non-empty)
+- [ ] Each FR and `INV-NNN` safeguard in `spec.md` maps to at least one task in `tasks.md`, and brownfield FRs are tagged `[DELTA]` or `[INVARIANT]`
+- [ ] Each task in `tasks.md` has explicit file paths and `Satisfies:` + `Gate:` linkage
+- [ ] Tasks are sized for a ≤400-changed-line diff; behavior-changing tasks tagged `[REFACTOR]`, preserved-behavior tasks `[INVARIANT]`, genuinely tricky ones `[HARD]`
+- [ ] `plan.md` REASONS Canvas is complete (all 7 sections non-empty)
 - [ ] All artifacts are committed (or at least staged)
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 

@@ -152,7 +152,7 @@ safe (or shows exactly what broke) with zero founder-initiated effort.
 - [x] A "which stage do I start at?" decision note for partially-specified work
       (README section + `examples/README.md`).
 - [ ] Optionally publish to a skills marketplace/registry if one fits; the
-      submodule + symlink model already works everywhere Claude Code runs.
+      submodule + symlink model already works everywhere `.claude/` and `.agents/` run.
 
 ---
 

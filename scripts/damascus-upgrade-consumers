@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""damascus-upgrade-consumers — Inspect and upgrade downstream Damascus consumer repositories.
+
+Supports:
+  - Scanning a directory of repositories (--scan-dir) or inspecting explicit ones (--repo)
+  - Gracefully detecting read-only bind mounts vs. writable consumer checkouts
+  - Running `install.sh --all-harnesses` and `install.sh --verify` across writable consumers
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+DAMASCUS_ROOT = Path(__file__).resolve().parent.parent
+INSTALL_SH = DAMASCUS_ROOT / "install.sh"
+
+
+def is_writable_dir(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    return os.access(path, os.W_OK)
+
+
+def inspect_consumer(repo: Path) -> dict[str, Any]:
+    writable = is_writable_dir(repo)
+    has_claude = (repo / ".claude" / "skills").is_dir()
+    has_agents = (repo / ".agents" / "skills").is_dir()
+    has_gemini = (repo / ".gemini" / "skills").is_dir()
+    has_hone = (repo / ".claude" / "skills" / "hone").is_symlink() or (repo / ".claude" / "skills" / "hone").exists()
+    vendor_damascus = repo / "vendor" / "damascus"
+    submodule_sha = None
+    if (vendor_damascus / ".git").exists():
+        proc = subprocess.run(
+            ["git", "-C", str(vendor_damascus), "rev-parse", "--short", "HEAD"],
+            text=True,
+            capture_output=True,
+        )
+        if proc.returncode == 0:
+            submodule_sha = proc.stdout.strip()
+
+    return {
+        "path": str(repo),
+        "name": repo.name,
+        "exists": repo.is_dir(),
+        "writable": writable,
+        "harnesses": {
+            ".claude": has_claude,
+            ".agents": has_agents,
+            ".gemini": has_gemini,
+        },
+        "has_v02_hone_skill": has_hone,
+        "vendor_damascus_sha": submodule_sha,
+    }
+
+
+def upgrade_consumer(repo: Path, all_harnesses: bool = True, dry_run: bool = False) -> dict[str, Any]:
+    info = inspect_consumer(repo)
+    if not info["exists"]:
+        info["status"] = "SKIPPED_MISSING"
+        return info
+    if not info["writable"] and not dry_run:
+        info["status"] = "SKIPPED_READONLY_MOUNT"
+        return info
+
+    cmd = ["bash", str(INSTALL_SH)]
+    if all_harnesses:
+        cmd.append("--all-harnesses")
+    if dry_run:
+        cmd.append("--dry-run")
+
+    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True)
+    info["install_returncode"] = proc.returncode
+    if proc.returncode != 0:
+        info["status"] = "FAILED"
+        info["stderr"] = proc.stderr.strip()
+        return info
+
+    if not dry_run:
+        ver = subprocess.run(["bash", str(INSTALL_SH), "--verify"], cwd=str(repo), text=True, capture_output=True)
+        info["verify_returncode"] = ver.returncode
+        info["status"] = "UPGRADED" if ver.returncode == 0 else "VERIFY_FAILED"
+        info["harnesses"] = {
+            ".claude": (repo / ".claude" / "skills").is_dir(),
+            ".agents": (repo / ".agents" / "skills").is_dir(),
+            ".gemini": (repo / ".gemini" / "skills").is_dir(),
+        }
+        info["has_v02_hone_skill"] = (repo / ".claude" / "skills" / "hone").is_symlink()
+    else:
+        info["status"] = "DRY_RUN_OK"
+
+    return info
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="damascus upgrade-consumers",
+        description="Inspect and upgrade downstream Damascus consumer repositories to this damascus checkout.",
+    )
+    parser.add_argument(
+        "--repo",
+        action="append",
+        default=[],
+        help="Explicit consumer repository path to inspect/upgrade (repeatable).",
+    )
+    parser.add_argument(
+        "--scan-dir",
+        help="Directory whose immediate subdirectories should be scanned for Damascus consumer repos.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Only inspect and report status without modifying consumer repositories.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run install.sh --dry-run on target repositories.",
+    )
+    parser.add_argument(
+        "--claude-only",
+        action="store_true",
+        help="Link only .claude/ instead of --all-harnesses (.claude, .agents, .gemini).",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+    args = parser.parse_args(argv)
+
+    targets: list[Path] = []
+    for r in args.repo:
+        targets.append(Path(r).resolve())
+    if args.scan_dir:
+        scan_root = Path(args.scan_dir).resolve()
+        if scan_root.is_dir():
+            for child in sorted(scan_root.iterdir()):
+                if child.is_dir() and ((child / ".git").exists() or (child / ".claude").exists()):
+                    targets.append(child)
+    if not targets:
+        parser.error("give --scan-dir DIR or --repo PATH")
+
+    results: list[dict[str, Any]] = []
+    for repo in targets:
+        if args.check:
+            info = inspect_consumer(repo)
+            info["status"] = "WRITABLE" if info["writable"] else "READONLY_MOUNT"
+            results.append(info)
+        else:
+            results.append(upgrade_consumer(repo, all_harnesses=not args.claude_only, dry_run=args.dry_run))
+
+    if args.json:
+        print(json.dumps({"damascus_root": str(DAMASCUS_ROOT), "consumers": results}, indent=2))
+    else:
+        print(f"=== Damascus Consumer Repository Matrix ({len(results)} repos) ===")
+        for r in results:
+            harnesses = ",".join(k for k, v in r["harnesses"].items() if v) or "none"
+            hone_str = "hone=yes" if r["has_v02_hone_skill"] else "hone=no"
+            print(f"  [{r['status']:22s}] {r['name']:24s} harnesses={harnesses:22s} {hone_str}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

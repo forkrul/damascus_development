@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""damascus-proof-coverage — Verify 100% of changed production files have a RED revert-proof.
+
+Prevents the "Partial Hunk Coverage" escape observed in field reviews where an
+agent writes a revert-proof for 1 out of N modified production files and leaves
+the remaining N-1 files unverified.
+"""
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+DEFAULT_EXEMPT_GLOBS = (
+    "tests/*",
+    "test/*",
+    "specs/*",
+    "docs/*",
+    ".prd/*",
+    ".claude/*",
+    ".agents/*",
+    ".damascus/*",
+    "*.md",
+    "*.rst",
+    "*.txt",
+    ".gitignore",
+    ".gitmodules",
+)
+
+
+def is_exempt_path(path: str, extra_globs: list[str]) -> bool:
+    for pattern in (*DEFAULT_EXEMPT_GLOBS, *extra_globs):
+        if fnmatch.fnmatch(path, pattern):
+            return True
+    return False
+
+
+def get_changed_files(repo_root: Path, base_ref: str, fix_ref: str) -> list[str]:
+    proc = subprocess.run(
+        ["git", "diff", "--name-only", base_ref, fix_ref],
+        cwd=str(repo_root),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="damascus-proof-coverage",
+        description="Verify that every non-exempt production file changed between base-ref and fix-ref is covered by a RED revert-proof.",
+    )
+    parser.add_argument("--base-ref", required=True, help="Git ref before the round's fixes.")
+    parser.add_argument("--fix-ref", default="HEAD", help="Git ref after the round's fixes (default: HEAD).")
+    parser.add_argument(
+        "--report",
+        type=Path,
+        required=True,
+        help="Path to JSON report output by damascus-revert-proof --report-out (or cases.json with exemptions).",
+    )
+    parser.add_argument(
+        "--exempt-glob",
+        action="append",
+        default=[],
+        help="Additional file glob to treat as non-production / exempt.",
+    )
+    parser.add_argument("--repo", type=Path, default=Path.cwd(), help="Target git repository root.")
+    args = parser.parse_args(argv)
+
+    data: dict[str, Any] = json.loads(args.report.read_text(encoding="utf-8"))
+    results = data.get("results", data.get("cases", []))
+    explicit_exemptions: dict[str, str] = data.get("exemptions", {})
+
+    covered_files: set[str] = set()
+    failed_proof_files: set[str] = set()
+    for r in results:
+        pfiles = r.get("production_files") or r.get("prod_files") or []
+        if r.get("state") == "RED" or r.get("passed") is True:
+            covered_files.update(pfiles)
+        else:
+            failed_proof_files.update(pfiles)
+
+    changed = get_changed_files(args.repo.resolve(), args.base_ref, args.fix_ref)
+    prod_changed = [f for f in changed if not is_exempt_path(f, args.exempt_glob)]
+
+    uncovered: list[str] = []
+    for f in prod_changed:
+        if f in covered_files:
+            print(f"[COVERED:RED] {f}")
+        elif f in explicit_exemptions and explicit_exemptions[f].strip():
+            print(f"[EXEMPT]      {f} (reason: {explicit_exemptions[f]})")
+        else:
+            reason = "revert-proof failed" if f in failed_proof_files else "missing from revert-proof cases"
+            print(f"[UNCOVERED]   {f} ({reason})")
+            uncovered.append(f)
+
+    if uncovered:
+        print(
+            f"\nFAIL: {len(uncovered)}/{len(prod_changed)} changed production file(s) lack a verified RED revert-proof.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"\nOK: 100% proof coverage across {len(prod_changed)} changed production file(s).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

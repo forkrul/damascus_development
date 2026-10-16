@@ -58,8 +58,8 @@ Gates quench installs from the PRD: `mypy --strict`, `ruff` (E/F/I/B/UP + banned
 
 ### Safeguards
 
-- `0 ≤ discount ≤ subtotal` → Hypothesis property in `test_pricing.py`, strategies: `subtotal ≥ 0`, `kind ∈ {percent, fixed}`, `value` in each kind's valid range (SC-001).
-- Double redemption → DB unique constraint is the source of truth; the application check is an early exit, not the guard. A concurrency test drives two checkouts at once and asserts exactly one row.
+- INV-001: `0 ≤ discount ≤ subtotal` → Hypothesis property in `test_pricing.py`, strategies: `subtotal ≥ 0`, `kind ∈ {percent, fixed}`, `value` in each kind's valid range (SC-001).
+- INV-002: double redemption → DB unique constraint is the source of truth; the application check is an early exit, not the guard. A concurrency test drives two checkouts at once and asserts exactly one row.
 - Expiry drift between apply and checkout → checkout re-validates; refusal string identical to apply-time.
 - No floats: enforced by the ruff banned-api rule, not by review.
 - Cart ownership → both discount routes mount under the existing cart router's `require_cart_owner` dependency; a request against another customer's cart is `404` (same as an unknown cart, so nothing is disclosed — NFR-2).

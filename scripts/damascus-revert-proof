@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""damascus-revert-proof — Worktree-isolated tri-state revert-proof verifier.
+
+Verifies the Damascus Revert-Proof Rule (used in `hone` and `quench`):
+"Every fix must be shown to fail without itself: after the fix is green,
+revert only the production change (keep the new test), run the test, and
+confirm it fails for the expected reason."
+
+Tri-state classification on the reverted production state:
+- RED (PASS): Test runner collects & executes tests, fails on assertion
+  (exit code 1, or configured failure exit code), and output matches the
+  expected failure pattern.
+- GREEN (FAIL — Vacuous Test): Test still passes (exit code 0) even with
+  the production fix reverted!
+- INCONCLUSIVE (FAIL — Collection/Import Error): Test runner exits with
+  a collection/usage/syntax error (exit code >= 2 or ImportError/SyntaxError)
+  before running the assertion.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+COLLECTION_ERROR_MARKERS = (
+    "ImportError",
+    "ModuleNotFoundError",
+    "SyntaxError",
+    "IndentationError",
+    "ERROR collecting",
+    "no tests ran",
+    "collected 0 items",
+)
+
+
+def run_cmd(cmd: list[str] | str, cwd: Path, shell: bool = False, timeout_s: float = 180.0) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return subprocess.run(
+        cmd,
+        cwd=str(cwd),
+        shell=shell,
+        text=True,
+        capture_output=True,
+        timeout=timeout_s,
+        env=env,
+    )
+
+
+def classify_reverted_run(
+    proc: subprocess.CompletedProcess[str],
+    expected_regex: str | None = None,
+) -> tuple[str, str]:
+    """Return (state, reason) where state is RED, GREEN, or INCONCLUSIVE."""
+    combined = f"{proc.stdout}\n{proc.stderr}"
+    if proc.returncode == 0:
+        return "GREEN", "Test passed (exit 0) even after reverting production changes (vacuous test)."
+
+    # Pytest exit codes: 1 = tests failed, 2 = interrupted, 3 = internal error, 4 = usage error, 5 = no tests collected
+    if proc.returncode in (2, 3, 4, 5):
+        return (
+            "INCONCLUSIVE",
+            f"Test runner exited with collection/harness error code {proc.returncode}.",
+        )
+
+    for marker in COLLECTION_ERROR_MARKERS:
+        if marker in combined:
+            return (
+                "INCONCLUSIVE",
+                f"Output contains collection/import error marker '{marker}' instead of assertion failure.",
+            )
+
+    if expected_regex and not re.search(expected_regex, combined, re.MULTILINE):
+        return (
+            "INCONCLUSIVE",
+            f"Test failed (exit {proc.returncode}) but output did not match expected_regex '{expected_regex}'.",
+        )
+
+    return "RED", f"Verified RED failure (exit {proc.returncode})."
+
+
+def verify_case_in_worktree(
+    repo_root: Path,
+    case: dict[str, Any],
+    timeout_s: float = 180.0,
+) -> dict[str, Any]:
+    case_id = case.get("id", "case")
+    base_ref = case["base_ref"]
+    fix_ref = case.get("fix_ref", "HEAD")
+    prod_files: list[str] = case.get("production_files") or case.get("prod_files") or []
+    test_cmd: str = case["test_cmd"]
+    expected_regex: str | None = case.get("expected_regex") or case.get("expect_regex")
+
+    if not prod_files:
+        return {
+            "id": case_id,
+            "state": "INCONCLUSIVE",
+            "passed": False,
+            "reason": "No production_files specified for revert-proof.",
+        }
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f"damascus-rp-{case_id}-"))
+    try:
+        # Create detached git worktree at fix_ref
+        wt_add = run_cmd(["git", "worktree", "add", "--detach", str(tmp_dir), fix_ref], cwd=repo_root)
+        if wt_add.returncode != 0:
+            return {
+                "id": case_id,
+                "state": "INCONCLUSIVE",
+                "passed": False,
+                "reason": f"git worktree add failed: {wt_add.stderr.strip()}",
+            }
+
+        # Step 1: Verify forward state (fix_ref) is GREEN
+        forward_proc = run_cmd(test_cmd, cwd=tmp_dir, shell=True, timeout_s=timeout_s)
+        if forward_proc.returncode != 0:
+            return {
+                "id": case_id,
+                "state": "INCONCLUSIVE",
+                "passed": False,
+                "reason": f"Forward test at fix_ref ({fix_ref}) did not pass (exit {forward_proc.returncode}).",
+                "forward_output": f"{forward_proc.stdout}\n{forward_proc.stderr}"[-1000:],
+            }
+
+        # Step 2: Revert ONLY the specified production_files to base_ref (keeping tests at fix_ref)
+        for rel_path in prod_files:
+            # Check if file existed in base_ref
+            cat_check = run_cmd(["git", "cat-file", "-e", f"{base_ref}:{rel_path}"], cwd=tmp_dir)
+            if cat_check.returncode == 0:
+                co = run_cmd(["git", "checkout", base_ref, "--", rel_path], cwd=tmp_dir)
+                if co.returncode != 0:
+                    return {
+                        "id": case_id,
+                        "state": "INCONCLUSIVE",
+                        "passed": False,
+                        "reason": f"Failed to revert {rel_path} to {base_ref}: {co.stderr.strip()}",
+                    }
+            else:
+                # File was newly created in fix_ref; remove it to restore base_ref state
+                target = tmp_dir / rel_path
+                if target.exists():
+                    target.unlink()
+
+        # Step 3: Run test_cmd on reverted production code + new test
+        reverted_proc = run_cmd(test_cmd, cwd=tmp_dir, shell=True, timeout_s=timeout_s)
+        state, reason = classify_reverted_run(reverted_proc, expected_regex=expected_regex)
+        return {
+            "id": case_id,
+            "state": state,
+            "passed": state == "RED",
+            "reason": reason,
+            "production_files": prod_files,
+            "test_cmd": test_cmd,
+        }
+    finally:
+        run_cmd(["git", "worktree", "remove", "--force", str(tmp_dir)], cwd=repo_root)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="damascus-revert-proof",
+        description="Verify that fixes fail (RED, not GREEN or INCONCLUSIVE) when production changes are reverted.",
+    )
+    parser.add_argument("--cases", type=Path, help="Path to JSON file containing a list of revert-proof cases.")
+    parser.add_argument("--id", default="cli-case", help="Case identifier for single-case CLI mode.")
+    parser.add_argument("--base-ref", help="Git ref before the fix (e.g., HEAD~1).")
+    parser.add_argument("--fix-ref", default="HEAD", help="Git ref with the fix and test (default: HEAD).")
+    parser.add_argument(
+        "--prod-file",
+        action="append",
+        dest="prod_files",
+        default=[],
+        help="Production file path to revert (may be specified multiple times).",
+    )
+    parser.add_argument("--test-cmd", help="Test command to run.")
+    parser.add_argument("--expect-regex", default=None, help="Optional regex the failure output must match.")
+    parser.add_argument("--report-out", type=Path, default=None, help="Write JSON verification report to this file.")
+    parser.add_argument("--repo", type=Path, default=Path.cwd(), help="Target git repository root.")
+    parser.add_argument("--timeout", type=float, default=180.0, help="Per-test timeout in seconds (default: 180 s).")
+    args = parser.parse_args(argv)
+
+    cases: list[dict[str, Any]] = []
+    if args.cases:
+        raw = json.loads(args.cases.read_text(encoding="utf-8"))
+        cases = raw["cases"] if isinstance(raw, dict) and "cases" in raw else raw
+    elif args.base_ref and args.test_cmd and args.prod_files:
+        cases = [
+            {
+                "id": args.id,
+                "base_ref": args.base_ref,
+                "fix_ref": args.fix_ref,
+                "production_files": args.prod_files,
+                "test_cmd": args.test_cmd,
+                "expected_regex": args.expect_regex,
+            }
+        ]
+    else:
+        parser.error("Provide either --cases <cases.json> or (--base-ref, --prod-file, --test-cmd).")
+
+    results = [verify_case_in_worktree(args.repo.resolve(), c, timeout_s=args.timeout) for c in cases]
+    all_passed = all(r["passed"] for r in results)
+    summary = {
+        "all_passed": all_passed,
+        "total": len(results),
+        "red_count": sum(1 for r in results if r["state"] == "RED"),
+        "green_count": sum(1 for r in results if r["state"] == "GREEN"),
+        "inconclusive_count": sum(1 for r in results if r["state"] == "INCONCLUSIVE"),
+        "results": results,
+    }
+
+    if args.report_out:
+        args.report_out.parent.mkdir(parents=True, exist_ok=True)
+        args.report_out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+    for r in results:
+        tag = "[PASS:RED]" if r["passed"] else f"[FAIL:{r['state']}]"
+        print(f"{tag} {r['id']}: {r['reason']}")
+
+    return 0 if all_passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

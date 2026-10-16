@@ -18,6 +18,7 @@ set -euo pipefail
 DAMASCUS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CONSUMER_ROOT="$(pwd -P)"
 DRY_RUN=0
+ALL_HARNESSES=0
 
 STAGE_SKILLS=(forge anvil temper quench hone smithy)
 # alias:stage pairs (plain array, not `declare -A` — bash 3.2 compatible)
@@ -185,6 +186,23 @@ preflight() {
   fi
 }
 
+install_harness_dir() { # install_harness_dir <skills_dir> <agents_dir>
+  local s_dir=$1 a_dir=$2 s pair a
+  run mkdir -p "$s_dir" "$a_dir"
+  for s in "${STAGE_SKILLS[@]}"; do
+    link "$DAMASCUS_ROOT/skills/$s" "$s_dir/$s"
+  done
+  for pair in "${ALIASES[@]}"; do
+    link "$DAMASCUS_ROOT/skills/${pair#*:}" "$s_dir/${pair%%:*}"
+  done
+  for a in "${AGENTS[@]}"; do
+    link "$DAMASCUS_ROOT/agents/$a.md" "$a_dir/$a.md"
+  done
+  for s in "${SUPERPOWERS_KEEP[@]}"; do
+    link "$DAMASCUS_ROOT/vendor/superpowers/skills/$s" "$s_dir/$s"
+  done
+}
+
 install() {
   preflight
   run mkdir -p "$SKILLS_DIR" "$AGENTS_DIR"
@@ -210,6 +228,15 @@ install() {
     link "$DAMASCUS_ROOT/vendor/superpowers/skills/$s" "$SKILLS_DIR/$s"
   done
 
+  if [ "${ALL_HARNESSES:-0}" -eq 1 ] || [ -d "$CONSUMER_ROOT/.agents" ]; then
+    info "vendor-neutral .agents harness"
+    install_harness_dir "$CONSUMER_ROOT/.agents/skills" "$CONSUMER_ROOT/.agents/agents"
+  fi
+  if [ "${ALL_HARNESSES:-0}" -eq 1 ] || [ -d "$CONSUMER_ROOT/.gemini" ]; then
+    info "gemini .gemini harness"
+    install_harness_dir "$CONSUMER_ROOT/.gemini/skills" "$CONSUMER_ROOT/.gemini/agents"
+  fi
+
   info "pruning stale damascus-owned links"
   prune
 
@@ -223,7 +250,9 @@ install() {
 
 uninstall() { # remove EVERY damascus-owned link, including stale names
   local p
-  for p in "$SKILLS_DIR"/* "$AGENTS_DIR"/*.md; do
+  for p in "$SKILLS_DIR"/* "$AGENTS_DIR"/*.md \
+           "$CONSUMER_ROOT/.agents/skills"/* "$CONSUMER_ROOT/.agents/agents"/*.md \
+           "$CONSUMER_ROOT/.gemini/skills"/* "$CONSUMER_ROOT/.gemini/agents"/*.md; do
     if owned_by_damascus "$p"; then
       run rm "$p"
       say_done "removed $(basename "$p")"
@@ -297,29 +326,56 @@ verify() { # report link health; include the env facts a bug report needs
   fi
 }
 
+print_root() {
+  printf '%s\n' "$DAMASCUS_ROOT"
+}
+
 usage() {
   cat <<'EOF'
-usage: install.sh [--install | --uninstall | --verify] [--dry-run]
+usage:
+  install.sh [--install | --uninstall | --verify | --print-root] [--all-harnesses] [--dry-run]
+  install.sh <agent-run | revert-proof | proof-coverage | test-lock | bdd-check | upgrade-consumers | eval> [args...]
 
 Run from the CONSUMER repo root (not from inside damascus).
 
-  --install    (default) symlink skills + agents into .claude/, prune stale links
-  --uninstall  remove every damascus-owned symlink
-  --verify     report link health; exit 1 if anything needs repair
-  --dry-run    print planned actions without touching anything
+  --install        (default) symlink skills + agents into .claude/ (and .agents/ / .gemini/ if present)
+  --all-harnesses  also create and populate .agents/{skills,agents} and .gemini/{skills,agents}
+  --uninstall      remove every damascus-owned symlink
+  --verify         report link health; exit 1 if anything needs repair
+  --print-root     print the canonical damascus repository root path and exit
+  --dry-run        print planned actions without touching anything
+
+Subcommands (model-agnostic CLI harnesses):
+  agent-run          probe or dispatch to local (Ollama, llama.cpp, vLLM) or cloud models
+  revert-proof       worktree-isolated tri-state (RED/GREEN/INCONCLUSIVE) revert-proof verifier
+  proof-coverage     verify 100% of changed production files have a RED revert-proof
+  test-lock          lock/verify SHA-256 Amber test freeze manifest (.damascus/locks/)
+  bdd-check          verify .feature files are bound to executable step definitions
+  upgrade-consumers  inspect or upgrade downstream Damascus consumer repositories
+  eval               run Damascus meta-autoresearch benchmark harness
 EOF
 }
 
 main() {
-  local mode=install arg
+  local mode=install arg sub
+  case "${1:-}" in
+    agent-run|revert-proof|proof-coverage|test-lock|bdd-check|upgrade-consumers)
+      sub=$1; shift
+      exec python3 "$DAMASCUS_ROOT/scripts/damascus-$sub" "$@" ;;
+    eval)
+      shift
+      exec python3 "$DAMASCUS_ROOT/evals/run_eval.py" "$@" ;;
+  esac
   for arg in "$@"; do
     case $arg in
-      --install)   mode=install ;;
-      --uninstall) mode=uninstall ;;
-      --verify)    mode=verify ;;
-      --dry-run)   DRY_RUN=1 ;;
-      -h|--help)   usage; exit 0 ;;
-      *) err "unknown flag: $arg (use --install, --uninstall, --verify, --dry-run)"; exit 1 ;;
+      --install)       mode=install ;;
+      --uninstall)     mode=uninstall ;;
+      --verify)        mode=verify ;;
+      --print-root)    mode=print_root ;;
+      --all-harnesses) ALL_HARNESSES=1 ;;
+      --dry-run)       DRY_RUN=1 ;;
+      -h|--help)       usage; exit 0 ;;
+      *) err "unknown flag: $arg (use --help for usage)"; exit 1 ;;
     esac
   done
   "$mode"

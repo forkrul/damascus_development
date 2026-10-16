@@ -92,11 +92,19 @@ damascus >/dev/null 2>&1 && fail "install exited 0 despite a skipped link"
 rm -r .claude/skills/hone && mv .claude/skills/hone-shadow/hone .claude/skills/ && rmdir .claude/skills/hone-shadow
 damascus --verify || fail "--verify failed after restoring the shadowed link"
 
+# --- --print-root and --all-harnesses (.agents/skills & .gemini/skills) ---
+[ "$(damascus --print-root)" = "$DAMASCUS" ] || fail "--print-root returned wrong path"
+damascus --all-harnesses
+[ -L ".agents/skills/smithy" ] || fail "--all-harnesses did not link .agents/skills/smithy"
+[ -L ".agents/agents/labcoat.md" ] || fail "--all-harnesses did not link .agents/agents/labcoat.md"
+[ -L ".gemini/skills/smithy" ] || fail "--all-harnesses did not link .gemini/skills/smithy"
+
 # --- uninstall removes everything owned, nothing else ---
 damascus --uninstall
 remaining="$(find .claude/skills -mindepth 1 -maxdepth 1 -exec basename {} \; | sort | xargs)"
 [ "$remaining" = "foreign-link my-own-skill" ] || fail "unexpected leftovers in skills/: $remaining"
 [ -z "$(find .claude/agents -mindepth 1 -print)" ] || fail "agents/ not emptied"
+[ -z "$(find .agents/skills -mindepth 1 -print)" ] || fail ".agents/skills/ not emptied"
 [ "$(cat .claude/skills/my-own-skill)" = keep ] || fail "uninstall touched consumer file"
 [ -L .claude/skills/foreign-link ] || fail "uninstall removed foreign symlink"
 

@@ -15,10 +15,10 @@ jobs:
           submodules: recursive
 
       - name: bash syntax check
-        run: bash -n install.sh tests/smoke.sh
+        run: bash -n install.sh tests/smoke.sh tests/dogfood_e2e.sh
 
       - name: shellcheck
-        run: shellcheck install.sh tests/smoke.sh
+        run: shellcheck install.sh tests/smoke.sh tests/dogfood_e2e.sh
 
       - name: alias symlinks are relative and resolve to stage skills
         run: |
@@ -119,7 +119,7 @@ jobs:
           .venv/bin/sphinx-build -W --keep-going -n -b html docs docs/_build/html
 
   smoke:
-    name: install/uninstall smoke test
+    name: install/uninstall smoke + eval + dogfood
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +132,12 @@ jobs:
 
       - name: smoke test (default bash)
         run: tests/smoke.sh
+
+      - name: end-to-end dogfood validation
+        run: tests/dogfood_e2e.sh
+
+      - name: autoresearch evaluation harness (J_damascus)
+        run: ./install.sh eval
 
       - name: smoke test (stock macOS bash 3.2)
         if: runner.os == 'macOS'
