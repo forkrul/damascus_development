@@ -73,6 +73,9 @@ jobs:
               || { echo "::error::$f frontmatter is missing name or description"; exit 1; }
           done
 
+      - name: live-eval scorer and seeded corpus self-check (echo scores 0)
+        run: python3 evals/run_eval.py --check-corpus
+
       # Policy (CLAUDE.md): vendor pointers sit on upstream tags, and the README names
       # the tag. Dependabot bumps to head commits fail here by design — re-pin to a tag.
       - name: vendor submodules are pinned to upstream tags named in the README

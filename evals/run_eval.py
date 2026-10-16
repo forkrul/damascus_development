@@ -13,6 +13,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -381,6 +382,29 @@ def adjudicate_stratified_rating(findings: list[dict[str, str]]) -> str:
 
 
 FALLBACK_MARKER = "> rule-auditor fallback"
+CORPUS_PATH = REPO_ROOT / "evals" / "corpus" / "seeded_cases.json"
+LIVE_RUNS_DIR = REPO_ROOT / ".damascus" / "eval-runs"
+
+# The format is described in words, never shown as a literal tag: a reply that merely
+# echoes the prompt must not contain a single tagged finding.
+FINDING_FORMAT = (
+    "Report each finding on its own line, starting with its severity in square brackets "
+    "(the word BLOCKING for anything that would be wrong to ship, otherwise NIT), then the "
+    "location, then the specific issue. Report only real defects; if there are none, say so in one line."
+)
+TEMPER_PROMPT = (
+    "You are a Damascus Temper critic (Completeness, Feasibility, and Testability lenses). "
+    "Review the following spec.md, plan.md, and tasks.md. " + FINDING_FORMAT + "\n\n"
+)
+HONE_PROMPT = (
+    "You are a Damascus Hone code review critic (Conformance, Security, and Simplicity lenses). "
+    "Review the following git diff against FR-002 (reject expired coupons with 422) and "
+    "security/simplicity invariants. " + FINDING_FORMAT + "\n\n"
+)
+
+
+class CorpusError(ValueError):
+    """The seeded corpus cannot be scored honestly (e.g. a defect has no novel diagnosis term)."""
 
 
 def answered_by(backend: str, stdout: str) -> str:
@@ -388,101 +412,197 @@ def answered_by(backend: str, stdout: str) -> str:
     return "rule-auditor" if backend == "rule-auditor" or FALLBACK_MARKER in stdout else "model"
 
 
-def run_live_llm_corpus_eval(backend: str = "auto") -> dict[str, Any]:
-    """Optional live LLM benchmark against all seeded temper and hone cases in evals/corpus/seeded_cases.json."""
-    corpus_path = REPO_ROOT / "evals" / "corpus" / "seeded_cases.json"
-    corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+def term_regex(term: str) -> re.Pattern[str]:
+    """Case-insensitive match for a corpus term; word boundaries at word-character ends, `*` = prefix."""
+    prefix = term.endswith("*")
+    core = term[:-1] if prefix else term
+    left = r"(?<!\w)" if re.match(r"\w", core) else ""
+    right = r"(?!\w)" if re.search(r"\w$", core) and not prefix else ""
+    return re.compile(left + re.escape(core) + right, re.IGNORECASE)
+
+
+def has_term(terms: list[str], text: str) -> bool:
+    return any(term_regex(t).search(text) for t in terms)
+
+
+def case_prompt(case: dict[str, Any]) -> str:
+    if "diff" in case:
+        return HONE_PROMPT + case["diff"]
+    return TEMPER_PROMPT + f"{case['spec_md']}\n{case['plan_md']}\n{case['tasks_md']}"
+
+
+def effective_diagnosis(case: dict[str, Any]) -> dict[str, list[str]]:
+    """Per defect, the diagnosis terms that do NOT already occur in the prompt (artifacts + template).
+
+    Terms the model could copy from its input prove nothing, so they never earn credit.
+    A defect left with no novel term would be unscoreable: fail loudly instead of scoring 0.
+    """
+    prompt = case_prompt(case)
+    out: dict[str, list[str]] = {}
+    for d in case.get("seeded_blocking_defects", []):
+        novel = [t for t in d["diagnosis"] if not term_regex(t).search(prompt)]
+        if not novel:
+            raise CorpusError(f"{case['id']}/{d['id']}: every diagnosis term already occurs in the prompt")
+        out[d["id"]] = novel
+    return out
+
+
+# A finding starts its line (after any bullet, number, quote or table pipe) with its severity
+# either in square brackets, `[BLOCKING]`, or followed by a colon or dash, `BLOCKING:`; bold is ignored.
+_TAG = re.compile(
+    r"^[\s>|*+-]*(?:\d+[.)]\s*)?[*_]*(?:\[\s*(BLOCKING|NIT|UNCONFIRMED)\s*\]|(BLOCKING|NIT|UNCONFIRMED)[*_]*\s*[:\u2014\u2013-])",
+    re.IGNORECASE,
+)
+
+
+def blocking_findings(reply: str) -> list[str]:
+    """Split a reply into BLOCKING findings: a tagged line plus its continuation lines
+    (up to the next tagged line or a blank line)."""
+    findings: list[str] = []
+    current: list[str] | None = None
+    for line in reply.splitlines():
+        m = _TAG.match(line)
+        if m:
+            if current is not None:
+                findings.append("\n".join(current))
+            current = [line] if (m.group(1) or m.group(2)).upper() == "BLOCKING" else None
+        elif not line.strip():
+            if current is not None:
+                findings.append("\n".join(current))
+            current = None
+        elif current is not None:
+            current.append(line)
+    if current is not None:
+        findings.append("\n".join(current))
+    return findings
+
+
+def score_reply(case: dict[str, Any], reply: str) -> dict[str, Any]:
+    """A seeded defect counts as found only when one BLOCKING finding names it (an anchor such as
+    its ID or symbol) AND says what is wrong in words the prompt did not supply."""
+    diagnosis = effective_diagnosis(case)
+    findings = blocking_findings(reply)
+    matched: list[str] = []
+    credited: set[int] = set()
+    for d in case.get("seeded_blocking_defects", []):
+        for i, f in enumerate(findings):
+            if has_term(d["anchors"], f) and has_term(diagnosis[d["id"]], f):
+                matched.append(d["id"])
+                credited.add(i)
+                break
+    return {
+        "blocking_findings": len(findings),
+        "matched": matched,
+        "unmatched_blocking": len(findings) - len(credited),
+    }
+
+
+def load_corpus_cases() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """(seeded cases, clean controls) across temper and hone."""
+    corpus = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
+    cases = corpus.get("temper_cases", []) + corpus.get("hone_cases", [])
+    return [c for c in cases if c.get("seeded_blocking_defects")], [c for c in cases if not c.get("seeded_blocking_defects")]
+
+
+def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+    seeded = [r for r in results if r["total"]]
+    matched = sum(len(r["matched"]) for r in seeded)
+    total = sum(r["total"] for r in seeded)
+    return {
+        "matched_defects": matched,
+        "total_defects": total,
+        "recall": round(matched / total, 2) if total else 1.0,
+        "clean_false_positives": sum(r["blocking_findings"] for r in results if not r["total"]),
+        "unmatched_blocking_on_seeded": sum(r["unmatched_blocking"] for r in seeded),
+        # A case whose backend failed (timeout, crash) has no reply: its zero is not a result.
+        "errored_cases": [r["id"] for r in results if r.get("returncode", 0) != 0],
+    }
+
+
+def echo_baseline() -> dict[str, Any]:
+    """Score a 'model' that replies with its own prompt. Any credit here means the scorer leaks."""
+    seeded, clean = load_corpus_cases()
+    results = []
+    for case in seeded + clean:
+        r = score_reply(case, case_prompt(case))
+        results.append({**r, "id": case["id"], "total": len(case.get("seeded_blocking_defects", []))})
+    return summarize(results)
+
+
+def check_corpus() -> list[str]:
+    """Self-check of the live-eval scorer and corpus (run in CI; not part of J_damascus)."""
+    errors: list[str] = []
+    try:
+        seeded, clean = load_corpus_cases()
+        for case in seeded:
+            effective_diagnosis(case)
+    except (CorpusError, KeyError, ValueError) as e:
+        return [f"corpus is not scoreable: {e}"]
+    if not clean:
+        errors.append("corpus has no clean control case")
+    echo = echo_baseline()
+    if echo["matched_defects"] or echo["clean_false_positives"]:
+        errors.append(f"echoing the prompt earns credit: {echo}")
+    for case in seeded:
+        for d in case["seeded_blocking_defects"]:
+            got = score_reply(case, f"- [BLOCKING] {d['description']}")["matched"]
+            if d["id"] not in got:
+                errors.append(f"{case['id']}/{d['id']}: its own description is not recognised as finding it")
+            if set(got) - {d["id"]}:
+                errors.append(f"{case['id']}/{d['id']}: its description also credits {sorted(set(got) - {d['id']})}")
+    for case in clean:
+        nits = "\n".join(f"- [NIT] {f['text']}" for f in case.get("simulated_critic_findings", []))
+        if score_reply(case, nits)["blocking_findings"]:
+            errors.append(f"{case['id']}: NIT findings were counted as BLOCKING")
+    return errors
+
+
+def run_live_llm_corpus_eval(backend: str = "auto", out_dir: Path | None = None) -> dict[str, Any]:
+    """Optional live LLM benchmark over every corpus case, including the clean control.
+
+    Each prompt and raw reply is saved under `out_dir` so the score can be audited.
+    """
+    seeded, clean = load_corpus_cases()
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_dir = out_dir or LIVE_RUNS_DIR / f"{ts}-{backend}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd_tail = ["--no-fallback"] if backend not in ("auto", "rule-auditor") else []
     case_results: list[dict[str, Any]] = []
-    total_matched = 0
-    total_defects = 0
 
-    for temper_case in corpus.get("temper_cases", []):
-        defects = temper_case.get("seeded_blocking_defects", [])
-        if not defects:
-            continue
-        prompt = (
-            "You are a Damascus Temper critic (Completeness, Feasibility, and Testability lenses). "
-            "Review the following spec.md, plan.md, and tasks.md and list every BLOCKING defect concisely.\n\n"
-            f"{temper_case['spec_md']}\n{temper_case['plan_md']}\n{temper_case['tasks_md']}"
-        )
+    for case in seeded + clean:
+        prompt = case_prompt(case)
+        role = "critic-b" if "diff" in case else "critic-a"
         proc = run_cmd(
-            [
-                sys.executable,
-                str(SCRIPTS_DIR / "damascus-agent-run"),
-                "--backend",
-                backend,
-                "--role",
-                "critic-a",
-                "--timeout",
-                "170",
-                "--prompt",
-                prompt,
-            ],
+            [sys.executable, str(SCRIPTS_DIR / "damascus-agent-run"), "--backend", backend, "--role", role,
+             "--timeout", "170", "--prompt", prompt, *cmd_tail],
             timeout_s=180.0,
         )
-        output_lower = proc.stdout.lower()
-        matched = [d["id"] for d in defects if any(kw.lower() in output_lower for kw in d["keywords"])]
-        total_matched += len(matched)
-        total_defects += len(defects)
+        (out_dir / f"{case['id']}.prompt.txt").write_text(prompt, encoding="utf-8")
+        (out_dir / f"{case['id']}.reply.txt").write_text(proc.stdout + (f"\n--- stderr ---\n{proc.stderr}" if proc.stderr else ""), encoding="utf-8")
+        total = len(case.get("seeded_blocking_defects", []))
+        scored = score_reply(case, proc.stdout)
         case_results.append(
             {
-                "id": temper_case["id"],
+                "id": case["id"],
                 "returncode": proc.returncode,
                 "answered_by": answered_by(backend, proc.stdout),
-                "matched": matched,
-                "total": len(defects),
-                "recall": round(len(matched) / len(defects), 2),
-            }
-        )
-
-    for hone_case in corpus.get("hone_cases", []):
-        defects = hone_case.get("seeded_blocking_defects", [])
-        if not defects:
-            continue
-        prompt = (
-            "You are a Damascus Hone code review critic (Conformance, Security, and Simplicity lenses). "
-            "Review the following git diff against FR-002 (reject expired coupons with 422) and security/simplicity invariants, "
-            "and list every BLOCKING defect concisely.\n\n"
-            f"{hone_case['diff']}"
-        )
-        proc = run_cmd(
-            [
-                sys.executable,
-                str(SCRIPTS_DIR / "damascus-agent-run"),
-                "--backend",
-                backend,
-                "--role",
-                "critic-b",
-                "--timeout",
-                "170",
-                "--prompt",
-                prompt,
-            ],
-            timeout_s=180.0,
-        )
-        output_lower = proc.stdout.lower()
-        matched = [d["id"] for d in defects if any(kw.lower() in output_lower for kw in d["keywords"])]
-        total_matched += len(matched)
-        total_defects += len(defects)
-        case_results.append(
-            {
-                "id": hone_case["id"],
-                "returncode": proc.returncode,
-                "answered_by": answered_by(backend, proc.stdout),
-                "matched": matched,
-                "total": len(defects),
-                "recall": round(len(matched) / len(defects), 2),
+                **scored,
+                "total": total,
+                "recall": round(len(scored["matched"]) / total, 2) if total else None,
             }
         )
 
     answered = {c["answered_by"] for c in case_results}
-    return {
+    report = {
+        "backend": backend,
         "cases": case_results,
         "answered_by": "model" if answered == {"model"} else "rule-auditor" if answered == {"rule-auditor"} else "mixed",
-        "matched_defects": total_matched,
-        "total_defects": total_defects,
-        "recall": round(total_matched / total_defects, 2) if total_defects else 1.0,
+        **summarize(case_results),
+        "echo_baseline": echo_baseline(),
+        "replies_dir": str(out_dir),
     }
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
 
 
 def eval_simplicity_regularizer() -> tuple[float, int, list[str]]:
@@ -556,7 +676,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Also run live LLM critic evaluation against evals/corpus/seeded_cases.json via damascus-agent-run.",
     )
     parser.add_argument("--backend", default="auto", help="Backend for --live-llm (default: auto).")
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="Where --live-llm saves each prompt and raw reply (default: .damascus/eval-runs/<UTC time>-<backend>/).",
+    )
+    parser.add_argument(
+        "--check-corpus",
+        action="store_true",
+        help="Only self-check the live-eval scorer and seeded corpus (echo scores 0, each defect matches its own description); exit 1 on failure.",
+    )
     args = parser.parse_args(argv)
+
+    if args.check_corpus:
+        errors = check_corpus()
+        for e in errors:
+            print(f"[FAIL] {e}")
+        if not errors:
+            echo = echo_baseline()
+            print(
+                f"[PASS] live-eval corpus is scoreable: echo baseline {echo['matched_defects']} / {echo['total_defects']} defects, "
+                f"{echo['clean_false_positives']} clean false positives; every defect is matched by its own description"
+            )
+        return 1 if errors else 0
 
     smoke_pts, smoke_notes = eval_smoke_suite()
     harness_pts, harness_notes = eval_mechanized_harnesses()
@@ -578,7 +721,7 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     if args.live_llm:
-        report["live_llm_corpus"] = run_live_llm_corpus_eval(args.backend)
+        report["live_llm_corpus"] = run_live_llm_corpus_eval(args.backend, args.out_dir)
 
     if args.record:
         append_results_tsv(
@@ -602,13 +745,21 @@ def main(argv: list[str] | None = None) -> int:
             llm_res = report["live_llm_corpus"]
             label = "LIVE-LLM" if llm_res["answered_by"] == "model" else "RULE-AUDITOR"
             note = "" if label == "LIVE-LLM" else " (deterministic pattern checks, not a model review)"
+            echo = llm_res["echo_baseline"]
             print(
-                f"  [{label}] Aggregate recall: {llm_res['recall'] * 100:.0f}% ({llm_res['matched_defects']} / {llm_res['total_defects']} seeded BLOCKING defects){note}"
+                f"  [{label}] Recall: {llm_res['matched_defects']} / {llm_res['total_defects']} seeded BLOCKING defects; "
+                f"{llm_res['clean_false_positives']} BLOCKING finding(s) on the clean control; "
+                f"{llm_res['unmatched_blocking_on_seeded']} other BLOCKING finding(s) on seeded cases{note}"
             )
+            print(f"    echo-the-prompt baseline: {echo['matched_defects']} / {echo['total_defects']}, {echo['clean_false_positives']} clean false positives")
+            if llm_res["errored_cases"]:
+                print(f"    [WARN] backend failed on {', '.join(llm_res['errored_cases'])}: those cases have no reply, so the totals above are incomplete")
             for case_res in llm_res.get("cases", []):
+                found = f"{len(case_res['matched'])} / {case_res['total']} {case_res['matched']}" if case_res["total"] else "clean control"
                 print(
-                    f"    - {case_res['id']}: {case_res['recall'] * 100:.0f}% ({case_res['matched']}) via {case_res['answered_by']}"
+                    f"    - {case_res['id']}: {found}, {case_res['blocking_findings']} BLOCKING finding(s), exit {case_res['returncode']}, via {case_res['answered_by']}"
                 )
+            print(f"    prompts and raw replies: {llm_res['replies_dir']}")
 
     return 0 if total_score >= 95.0 else 1
 
