@@ -1,4 +1,17 @@
 # Sphinx output and the pages docs/_ext/damascus_sources.py regenerates on every build
 docs/_build/
 docs/_generated/
+
+# Local harness & IDE state
+.claude/
+.agents/
+.gemini/
+.damascus/
+.mcp.json
+
+# Python bytecode & caches
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

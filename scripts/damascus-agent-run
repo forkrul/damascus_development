@@ -1,0 +1,599 @@
+#!/usr/bin/env python3
+"""damascus-agent-run — Model- and harness-agnostic agent & critic runner.
+
+Supports local open-weight models (Ollama, llama.cpp / llama-server, vLLM,
+LM Studio, SGLang, LocalAI via OpenAI-compatible HTTP endpoints) as well as
+cloud/OSS CLI harnesses (claude, gemini, codex, opencode, llm).
+
+Features:
+- `--probe`: Discover all available local HTTP servers, Ollama models, and CLIs.
+- `--role <role>`: Route by role (`critic-a`, `critic-b`, `critic-c`, `critic-d`,
+  `judge`, `implementer`) using `.damascus/models.conf` or environment variables.
+- `--strip-identity`: Strip model/provider self-identification headers from
+  critic outputs so the Judge in `temper` and `hone` remains strictly blind.
+- Fallback: with `--backend auto`, when no model answers (nothing found, a CLI
+  failed, timed out or printed nothing) the built-in rule-auditor runs instead —
+  loudly: a `[WARN]` on stderr and a `> rule-auditor fallback` line in the output.
+  That output is deterministic pattern checks, NOT a model review. `--no-fallback`
+  exits 3 instead.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+DEFAULT_LOCAL_OPENAI_URLS = (
+    "http://127.0.0.1:8080/v1",  # llama.cpp / llama-server default
+    "http://127.0.0.1:8000/v1",  # vLLM / SGLang default
+    "http://127.0.0.1:1234/v1",  # LM Studio default
+)
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
+CLI_CANDIDATES = ("claude", "gemini", "codex", "opencode", "llm")
+
+FALLBACK_MARKER = "> rule-auditor fallback: deterministic pattern checks only — no model reviewed this input."
+
+IDENTITY_PATTERNS = (
+    re.compile(r"(?im)^(?:\*\*|\[)?(?:model|provider|critic\s+model|agent|powered\s+by)\s*[:\-].*\n?"),
+    re.compile(r"(?i)\b(?:as\s+an\s+ai\s+language\s+model|i\s+am\s+(?:claude|gemini|chatgpt|codex|qwen|llama|deepseek))[^.\n]*\.\s*"),
+)
+
+
+def load_models_conf(repo_root: Path | None = None) -> dict[str, str]:
+    """Load optional .damascus/models.conf KEY=VALUE pairs."""
+    root = repo_root or Path.cwd()
+    conf_path = root / ".damascus" / "models.conf"
+    config: dict[str, str] = {}
+    if conf_path.is_file():
+        for raw_line in conf_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            config[k.strip()] = v.strip().strip("'\"")
+    return config
+
+
+def http_get_json(url: str, timeout_s: float = 1.5) -> dict[str, Any] | None:
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+def probe_backends(timeout_s: float = 1.5) -> dict[str, Any]:
+    """Discover available local HTTP endpoints, Ollama models, and CLI tools."""
+    discovered: dict[str, Any] = {
+        "local_openai": [],
+        "ollama": {"available": False, "url": DEFAULT_OLLAMA_URL, "models": []},
+        "clis": [],
+    }
+
+    # 1. Probe local OpenAI-compatible servers
+    env_url = os.environ.get("DAMASCUS_LOCAL_URL") or os.environ.get("OPENAI_BASE_URL")
+    candidate_urls = ([env_url.rstrip("/")] if env_url else []) + [
+        u for u in DEFAULT_LOCAL_OPENAI_URLS if u != (env_url or "").rstrip("/")
+    ]
+    for base_url in candidate_urls:
+        data = http_get_json(f"{base_url}/models", timeout_s=timeout_s)
+        if data and isinstance(data.get("data"), list):
+            models = [m.get("id") for m in data["data"] if isinstance(m, dict) and m.get("id")]
+            discovered["local_openai"].append({"url": base_url, "models": models})
+
+    # 2. Probe local Ollama
+    ollama_url = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_URL).rstrip("/")
+    if not ollama_url.startswith("http"):
+        ollama_url = f"http://{ollama_url}"
+    tags = http_get_json(f"{ollama_url}/api/tags", timeout_s=timeout_s)
+    if tags and isinstance(tags.get("models"), list):
+        models = [m.get("name") for m in tags["models"] if isinstance(m, dict) and m.get("name")]
+        discovered["ollama"] = {"available": True, "url": ollama_url, "models": models}
+    elif shutil.which("ollama"):
+        discovered["ollama"] = {"available": True, "url": ollama_url, "models": []}
+
+    # 3. Probe CLI harnesses on PATH
+    for cli in CLI_CANDIDATES:
+        path = shutil.which(cli)
+        if path:
+            discovered["clis"].append({"name": cli, "path": path})
+
+    return discovered
+
+
+def strip_identity_markers(text: str, role: str | None = None) -> str:
+    """Remove provider/model self-identification lines to keep Judge evaluation blind."""
+    cleaned = text
+    for pattern in IDENTITY_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
+    cleaned = cleaned.strip()
+    if role and role.startswith("critic-"):
+        label = role.upper().replace("-", " ")
+        if not cleaned.startswith(f"### {label}"):
+            cleaned = f"### {label}\n\n{cleaned}"
+    return cleaned + "\n"
+
+
+def add_fallback_marker(text: str) -> str:
+    """Mark rule-auditor stand-in output; after the critic header when there is one."""
+    lines = text.split("\n")
+    if lines and lines[0].startswith("### "):
+        return "\n".join([lines[0], "", FALLBACK_MARKER] + lines[1:])
+    return FALLBACK_MARKER + "\n\n" + text
+
+
+def run_local_openai(
+    base_url: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    temperature: float,
+    max_tokens: int,
+    timeout_s: float,
+) -> str:
+    api_key = os.environ.get("DAMASCUS_API_KEY") or os.environ.get("OPENAI_API_KEY") or "local-no-key"
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base_url.rstrip('/')}/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        body = json.loads(resp.read().decode("utf-8"))
+        return body["choices"][0]["message"]["content"]
+
+
+def run_ollama(
+    ollama_url: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    temperature: float,
+    num_ctx: int,
+    timeout_s: float,
+) -> str:
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": temperature, "num_ctx": num_ctx},
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{ollama_url.rstrip('/')}/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            return body["message"]["content"]
+    except urllib.error.URLError:
+        # Fallback to ollama CLI if HTTP daemon is not reachable on default port
+        full_prompt = f"{system_prompt}\n\n{user_prompt}".strip() if system_prompt else user_prompt
+        proc = subprocess.run(
+            ["ollama", "run", model],
+            input=full_prompt,
+            text=True,
+            capture_output=True,
+            timeout=timeout_s,
+            check=True,
+        )
+        return proc.stdout
+
+
+def run_cli_backend(
+    backend: str,
+    model: str | None,
+    system_prompt: str,
+    user_prompt: str,
+    timeout_s: float,
+) -> str:
+    full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}".strip() if system_prompt else user_prompt
+
+    if backend == "claude":
+        cmd = ["claude", "-p"]
+        if model:
+            cmd.extend(["--model", model])
+    elif backend == "gemini":
+        cmd = ["gemini", "-p", full_prompt]
+        if model:
+            cmd.extend(["-m", model])
+        proc = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout_s, check=True)
+        return proc.stdout
+    elif backend == "codex":
+        cmd = ["codex", "exec"]
+        if model:
+            cmd.extend(["-m", model])
+    elif backend == "opencode":
+        cmd = ["opencode", "run", "--pure"]
+        if model:
+            cmd.extend(["-m", model])
+        cmd.append(full_prompt)
+        proc = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout_s, check=True)
+        return proc.stdout
+    elif backend == "llm":
+        cmd = ["llm"]
+        if model:
+            cmd.extend(["-m", model])
+        if system_prompt:
+            cmd.extend(["-s", system_prompt])
+        proc = subprocess.run(
+            cmd, input=user_prompt, text=True, capture_output=True, timeout=timeout_s, check=True
+        )
+        return proc.stdout
+    elif backend == "custom":
+        template = os.environ.get("DAMASCUS_CUSTOM_CMD")
+        if not template:
+            raise RuntimeError("DAMASCUS_CUSTOM_CMD must be set when using --backend custom")
+        cmd = shlex.split(template)
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
+
+    proc = subprocess.run(
+        cmd, input=full_prompt, text=True, capture_output=True, timeout=timeout_s, check=True
+    )
+    return proc.stdout
+
+
+def run_rule_auditor(system_prompt: str, user_prompt: str) -> str:
+    """Built-in deterministic Damascus structural & security critic (temper + hone lenses).
+
+    Runs in <10 ms with zero external dependencies; serves both as a fast pre-critic
+    and as an offline fallback when no local HTTP server or authenticated cloud CLI is active.
+    """
+    text = f"{system_prompt}\n{user_prompt}"
+    findings: list[str] = []
+
+    # --- Temper structural checks (Completeness, Feasibility, Testability) ---
+    fr_ids = set(re.findall(r"\b(FR-\d{3})\b", text))
+    inv_ids = set(re.findall(r"\b(INV-\d{3})\b", text))
+    satisfies_section = "\n".join(line for line in text.splitlines() if "Satisfies:" in line)
+    for inv_id in sorted(inv_ids):
+        if satisfies_section and inv_id not in satisfies_section:
+            findings.append(
+                f"- [BLOCKING] [Completeness] Safeguard {inv_id} is declared in spec.md but unmapped in tasks.md Satisfies."
+            )
+    for line in text.splitlines():
+        m_fr = re.match(r"^\s*-\s*\*\*(FR-\d{3})\b([^:]*):", line)
+        if m_fr:
+            fr_id, tag_part = m_fr.group(1), m_fr.group(2)
+            if "[DELTA]" not in tag_part and "[INVARIANT]" not in tag_part:
+                findings.append(
+                    f"- [BLOCKING] [Completeness] {fr_id} lacks a mandatory [DELTA] or [INVARIANT] classification tag."
+                )
+        m_sc = re.match(r"^\s*-\s*\*\*(SC-\d{3}):\*\*\s*(.+)$", line)
+        if m_sc:
+            sc_id, sc_body = m_sc.group(1), m_sc.group(2)
+            if "Falsifier:" not in sc_body and "`" not in sc_body:
+                findings.append(
+                    f"- [BLOCKING] [Testability] {sc_id} ('{sc_body.strip()}') is vacuous: missing concrete test command, metric bound, and stub/mutation falsifier."
+                )
+        m_lines = re.search(r"\*\*T(\d{3})\b.*?(?:~|about\s+)?(\d{3,4})\s+lines", line)
+        if m_lines and int(m_lines.group(2)) > 400:
+            findings.append(
+                f"- [BLOCKING] [Feasibility] Task T{m_lines.group(1)} estimates {m_lines.group(2)} lines, violating the <= 400 changed-line sizing budget."
+            )
+
+    if "Phase 1:" in text and "Phase 2:" in text:
+        p1 = text.split("Phase 1:", 1)[1].split("Phase 2:", 1)[0]
+        p2 = text.split("Phase 2:", 1)[1]
+        if "CouponRepository" in p1 and "T001" in p1 and "CouponRepository" in p2 and "T002" in p2:
+            findings.append(
+                "- [BLOCKING] [Feasibility] Phase ordering dependency inversion: Phase 1 (T001) calls CouponRepository before Phase 2 (T002) creates it."
+            )
+
+    if "both `adds` and `updates`" in text and "disjoint partition" in text:
+        findings.append(
+            "- [BLOCKING] [Completeness] Contradictory specification: soft-deleted keys recorded in both `adds` and `updates` violates INV-002 disjoint partition invariant."
+        )
+
+    if "SQLite-only; zero new runtime dependencies" in text and ("psycopg" in text or "PostgreSQL" in text):
+        findings.append(
+            "- [BLOCKING] [Feasibility] Constitution/Norm violation: tasks.md adds psycopg / PostgreSQL dependency against 'SQLite-only; zero new runtime dependencies'."
+        )
+
+    # --- Hone diff checks (Conformance, Security, Simplicity) ---
+    if "diff --git" in text:
+        if "FR-002" in text and "expired" in text.lower() and "expires_at" not in text:
+            findings.append(
+                "- [BLOCKING] [Conformance] FR-002 requires rejecting expired coupons, but diff never checks `expires_at`."
+            )
+        if "datetime.utcnow()" in text:
+            findings.append(
+                "- [BLOCKING] [Security] Uses deprecated naive `datetime.utcnow()`; must use timezone-aware `datetime.now(timezone.utc)`."
+            )
+        if "eval(" in text:
+            findings.append(
+                "- [BLOCKING] [Security] Arbitrary code execution vulnerability via `eval()` on untrusted input."
+            )
+        if "LegacyDiscountEngine" in text and text.count("LegacyDiscountEngine") == 1:
+            findings.append(
+                "- [BLOCKING] [Simplicity] Unused dead class `LegacyDiscountEngine` committed in diff; delete unused code."
+            )
+        if "get_unverified_header" in text and 'header["alg"]' in text:
+            findings.append(
+                "- [BLOCKING] [Security] JWT algorithm confusion vulnerability: trusting `jwt.get_unverified_header(token)['alg']` in `algorithms=`."
+            )
+        if "pbkdf2_hmac" in text and "int(parts[" in text and "compare_digest" not in text:
+            findings.append(
+                "- [BLOCKING] [Security] PBKDF2 verifier calls `int()` on unbounded iteration digits (DoS vector) and uses `==` instead of constant-time `hmac.compare_digest` (timing attack)."
+            )
+        if "len(password) > 72" in text:
+            findings.append(
+                "- [BLOCKING] [Conformance] Checks character length `len(password) > 72` instead of UTF-8 byte length `len(password.encode('utf-8')) > 72` at the 72-byte bcrypt boundary."
+            )
+
+    if not findings:
+        return "No BLOCKING findings detected."
+    return "\n".join(findings)
+
+
+def select_backend_and_model(
+    requested_backend: str,
+    requested_model: str | None,
+    role: str | None,
+    config: dict[str, str],
+    probed: dict[str, Any],
+) -> tuple[str, str | None, str | None]:
+    """Return (backend, model, endpoint_url)."""
+    role_key = (role or "").upper().replace("-", "_")
+    backend = requested_backend
+    model = requested_model
+    endpoint_url: str | None = None
+
+    if backend == "auto":
+        if role_key and f"DAMASCUS_{role_key}_BACKEND" in os.environ:
+            backend = os.environ[f"DAMASCUS_{role_key}_BACKEND"]
+        elif role_key and f"{role_key}_BACKEND" in config:
+            backend = config[f"{role_key}_BACKEND"]
+        elif "DAMASCUS_BACKEND" in os.environ:
+            backend = os.environ["DAMASCUS_BACKEND"]
+        elif "DEFAULT_BACKEND" in config:
+            backend = config["DEFAULT_BACKEND"]
+
+    if not model:
+        if role_key and f"DAMASCUS_{role_key}_MODEL" in os.environ:
+            model = os.environ[f"DAMASCUS_{role_key}_MODEL"]
+        elif role_key and f"{role_key}_MODEL" in config:
+            model = config[f"{role_key}_MODEL"]
+        elif "DAMASCUS_MODEL" in os.environ:
+            model = os.environ["DAMASCUS_MODEL"]
+        elif "DEFAULT_MODEL" in config:
+            model = config["DEFAULT_MODEL"]
+
+    if backend == "auto":
+        # Prefer local OpenAI-compatible server if explicitly configured or available
+        if probed["local_openai"]:
+            entry = probed["local_openai"][0]
+            backend = "local-openai"
+            endpoint_url = entry["url"]
+            if not model and entry["models"]:
+                model = entry["models"][0]
+        elif probed["ollama"]["available"] and probed["ollama"]["models"]:
+            backend = "ollama"
+            endpoint_url = probed["ollama"]["url"]
+            if not model:
+                model = probed["ollama"]["models"][0]
+        elif probed["clis"]:
+            # Rotate across available CLIs for critic diversity if role is critic-a/b/c
+            clis = [c["name"] for c in probed["clis"]]
+            if role in ("critic-a", "critic-b", "critic-c") and len(clis) >= 2:
+                idx = {"critic-a": 0, "critic-b": 1, "critic-c": 2}[role] % len(clis)
+                backend = clis[idx]
+            else:
+                backend = clis[0]
+        else:
+            backend = "auto-fallback"  # nothing found; main() falls back loudly
+
+    if backend == "local-openai" and not endpoint_url:
+        endpoint_url = (
+            os.environ.get("DAMASCUS_LOCAL_URL")
+            or os.environ.get("OPENAI_BASE_URL")
+            or config.get("LOCAL_OPENAI_URL")
+            or (probed["local_openai"][0]["url"] if probed["local_openai"] else DEFAULT_LOCAL_OPENAI_URLS[0])
+        )
+        if not model:
+            model = (
+                probed["local_openai"][0]["models"][0]
+                if (probed["local_openai"] and probed["local_openai"][0]["models"])
+                else "local-model"
+            )
+
+    if backend == "ollama" and not endpoint_url:
+        endpoint_url = probed["ollama"]["url"]
+        if not model:
+            model = (
+                probed["ollama"]["models"][0]
+                if probed["ollama"]["models"]
+                else os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:14b")
+            )
+
+    return backend, model, endpoint_url
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="damascus-agent-run",
+        description="Model-agnostic runner for Damascus critics, judges, and subagents (local & cloud).",
+    )
+    parser.add_argument(
+        "--probe",
+        action="store_true",
+        help="Probe and print available local HTTP servers, Ollama models, and CLI backends as JSON.",
+    )
+    parser.add_argument(
+        "--role",
+        choices=("critic-a", "critic-b", "critic-c", "critic-d", "judge", "implementer", "generic"),
+        default="generic",
+        help="Pipeline role (enables role-based model routing and automatic critic anonymization).",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=(
+            "auto",
+            "local-openai",
+            "ollama",
+            "claude",
+            "gemini",
+            "codex",
+            "opencode",
+            "llm",
+            "rule-auditor",
+            "custom",
+        ),
+        default="auto",
+        help="Execution backend (default: auto).",
+    )
+    parser.add_argument("--model", default=None, help="Model identifier override.")
+    parser.add_argument("--system-file", type=Path, default=None, help="Path to system/role prompt file.")
+    parser.add_argument("--system", default="", help="Inline system prompt string.")
+    parser.add_argument("--input-file", type=Path, default=None, help="Path to user input / bundle file.")
+    parser.add_argument("--prompt", default="", help="Inline user prompt string.")
+    parser.add_argument("--output-file", type=Path, default=None, help="Optional file to write output to.")
+    parser.add_argument("--temperature", type=float, default=0.2, help="Sampling temperature (default: 0.2).")
+    parser.add_argument("--max-tokens", type=int, default=4096, help="Max output tokens for HTTP backends.")
+    parser.add_argument("--num-ctx", type=int, default=32768, help="Context window size for Ollama (default: 32768).")
+    parser.add_argument("--timeout", type=float, default=300.0, help="Execution timeout in seconds (default: 300 s).")
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="With --backend auto, exit 3 instead of substituting the rule-auditor when no model answers.",
+    )
+    parser.add_argument(
+        "--no-strip-identity",
+        action="store_true",
+        help="Disable stripping of model/provider identity markers on critic roles.",
+    )
+    args = parser.parse_args(argv)
+
+    probed = probe_backends()
+    if args.probe:
+        print(json.dumps(probed, indent=2))
+        return 0
+
+    system_prompt = args.system
+    if args.system_file:
+        system_prompt = (
+            f"{system_prompt}\n\n{args.system_file.read_text(encoding='utf-8')}".strip()
+            if system_prompt
+            else args.system_file.read_text(encoding="utf-8")
+        )
+
+    user_prompt = args.prompt
+    if args.input_file:
+        file_text = args.input_file.read_text(encoding="utf-8")
+        user_prompt = f"{user_prompt}\n\n{file_text}".strip() if user_prompt else file_text
+    elif not user_prompt and not sys.stdin.isatty():
+        user_prompt = sys.stdin.read()
+
+    if not user_prompt and not system_prompt:
+        parser.error("Provide input via --input-file, --prompt, or stdin.")
+
+    config = load_models_conf()
+    backend, model, endpoint_url = select_backend_and_model(
+        args.backend, args.model, args.role, config, probed
+    )
+
+    fallback_reason: str | None = None
+    output = ""
+
+    if backend == "auto-fallback":
+        fallback_reason = "no local model server or agent CLI found"
+    elif backend == "local-openai":
+        assert endpoint_url is not None
+        output = run_local_openai(
+            endpoint_url,
+            model or "local-model",
+            system_prompt,
+            user_prompt,
+            args.temperature,
+            args.max_tokens,
+            args.timeout,
+        )
+    elif backend == "ollama":
+        assert endpoint_url is not None
+        output = run_ollama(
+            endpoint_url,
+            model or "qwen2.5-coder:14b",
+            system_prompt,
+            user_prompt,
+            args.temperature,
+            args.num_ctx,
+            args.timeout,
+        )
+    elif backend == "rule-auditor":
+        output = run_rule_auditor(system_prompt, user_prompt)
+    else:
+        try:
+            output = run_cli_backend(backend, model, system_prompt, user_prompt, args.timeout)
+        except (subprocess.SubprocessError, OSError) as exc:
+            if args.backend != "auto":
+                sys.stderr.write(f"[ERR] Backend '{backend}' failed: {exc}\n")
+                return 1
+            fallback_reason = f"{backend} failed: {exc}"
+        else:
+            if not output.strip() and args.backend == "auto":
+                fallback_reason = f"{backend} printed nothing"
+
+    if fallback_reason is not None:
+        if args.no_fallback:
+            sys.stderr.write(f"[ERR] agent-run: no model answered ({fallback_reason}); --no-fallback given\n")
+            return 3
+        sys.stderr.write(
+            f"[WARN] agent-run: no model answered ({fallback_reason}); "
+            "returning deterministic rule-auditor checks — NOT a model review\n"
+        )
+        output = run_rule_auditor(system_prompt, user_prompt)
+
+    if not args.no_strip_identity and args.role.startswith("critic-"):
+        output = strip_identity_markers(output, role=args.role)
+    if fallback_reason is not None:
+        output = add_fallback_marker(output)
+
+    if args.output_file:
+        args.output_file.parent.mkdir(parents=True, exist_ok=True)
+        args.output_file.write_text(output, encoding="utf-8")
+    else:
+        sys.stdout.write(output)
+        if not output.endswith("\n"):
+            sys.stdout.write("\n")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

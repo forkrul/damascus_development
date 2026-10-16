@@ -67,11 +67,16 @@ A customer who has already checked out with a code cannot apply it again; other 
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept `POST /cart/{cart_id}/discount` with body `{"code": string}` and respond `200` with integer `subtotal_minor`, `discount_minor`, `total_minor` and the canonical `code`. Applying a code to a cart that already carries one replaces it; at most one `discount_code_id` is stored per cart.
-- **FR-002**: System MUST compute the discount in integer minor units from the post-sale subtotal: `percent` → `subtotal × value / 100` rounded half-up to the nearest minor unit; `fixed` → `value`. The result MUST then be clamped to `[0, subtotal]`, so `total_minor = subtotal − discount` is never negative and never exceeds the subtotal. The discount is recomputed from the stored code on every cart read and is never persisted.
-- **FR-003**: System MUST refuse an unknown or inactive code with `404 {"detail": "code_not_found"}`, and a code whose `expires_at` is set and `≤ now` (UTC, timezone-aware) with `422 {"detail": "code_expired"}`. A refused apply leaves the cart unchanged. Expiry is checked at apply time and again inside checkout.
-- **FR-004**: System MUST, inside the checkout transaction, write a Redemption `(code_id, customer_id, order_id, redeemed_at)` enforced unique on `(code_id, customer_id)`. An apply or checkout by a customer who already has a Redemption for that code MUST be refused with `409 {"detail": "code_already_redeemed"}`. Guest carts skip this entirely.
-- **FR-005**: System MUST expose `DELETE /cart/{cart_id}/discount`, returning `204` and clearing `discount_code_id`; calling it when no code is applied is also `204`.
+- **FR-001 [DELTA]**: System MUST accept `POST /cart/{cart_id}/discount` with body `{"code": string}` and respond `200` with integer `subtotal_minor`, `discount_minor`, `total_minor` and the canonical `code`. Applying a code to a cart that already carries one replaces it; at most one `discount_code_id` is stored per cart.
+- **FR-002 [DELTA]**: System MUST compute the discount in integer minor units from the post-sale subtotal: `percent` → `subtotal × value / 100` rounded half-up to the nearest minor unit; `fixed` → `value`. The result MUST then be clamped to `[0, subtotal]`, so `total_minor = subtotal − discount` is never negative and never exceeds the subtotal. The discount is recomputed from the stored code on every cart read and is never persisted.
+- **FR-003 [DELTA]**: System MUST refuse an unknown or inactive code with `404 {"detail": "code_not_found"}`, and a code whose `expires_at` is set and `≤ now` (UTC, timezone-aware) with `422 {"detail": "code_expired"}`. A refused apply leaves the cart unchanged. Expiry is checked at apply time and again inside checkout.
+- **FR-004 [DELTA]**: System MUST, inside the checkout transaction, write a Redemption `(code_id, customer_id, order_id, redeemed_at)` enforced unique on `(code_id, customer_id)`. An apply or checkout by a customer who already has a Redemption for that code MUST be refused with `409 {"detail": "code_already_redeemed"}`. Guest carts skip this entirely.
+- **FR-005 [DELTA]**: System MUST expose `DELETE /cart/{cart_id}/discount`, returning `204` and clearing `discount_code_id`; calling it when no code is applied is also `204`.
+
+### Invariant Safeguards
+
+- **INV-001**: A discount MUST never increase the price or take it below zero: for every subtotal `s ≥ 0` and every code, `0 ≤ discount ≤ s`. Verified by SC-001's property test.
+- **INV-002**: A customer MUST never redeem the same code twice, even under concurrent checkouts. The database unique constraint on `(code_id, customer_id)` is the guard (FR-004).
 
 ### Key Entities
 
@@ -81,9 +86,9 @@ A customer who has already checked out with a code cannot apply it again; other 
 
 ## Success Criteria
 
-- **SC-001**: For 10 000 Hypothesis-generated `(subtotal, kind, value)` cases, `0 ≤ discount ≤ subtotal` holds with no counterexample. Verified by `tests/unit/test_pricing.py::test_fr002_property_never_negative_never_exceeds` (`max_examples=10000` locally, 2000 in CI).
-- **SC-002**: Applying a code to a 50-line cart completes in < 100 ms p95 over 200 requests against local Postgres. Verified by `tests/perf/test_discount_latency.py` (marked `perf`; nightly CI job).
-- **SC-003**: Every FR-001…FR-005 is named by at least one passing test; quench's traceability sweep prints no `UNTESTED:` line. Verified at quench completion and recorded in `quench-log.md`.
+- **SC-001**: For 10 000 Hypothesis-generated `(subtotal, kind, value)` cases, `0 ≤ discount ≤ subtotal` holds with no counterexample. Verified by `tests/unit/test_pricing.py::test_fr002_property_never_negative_never_exceeds` (`max_examples=10000` locally, 2000 in CI). Falsifier: replacing the clamp with an unclamped `discount` makes the property fail on `fixed` codes larger than the subtotal.
+- **SC-002**: Applying a code to a 50-line cart completes in < 100 ms p95 over 200 requests against local Postgres. Verified by `tests/perf/test_discount_latency.py` (marked `perf`; nightly CI job). Falsifier: dropping the unique index on `code` forces a full scan and pushes p95 over 100 ms.
+- **SC-003**: Every FR-001…FR-005 is named by at least one passing test; quench's traceability sweep prints no `UNTESTED:` line. Verified at quench completion and recorded in `quench-log.md`. Falsifier: deleting the only test that names FR-004 makes the sweep print `UNTESTED: FR-004`.
 
 ## Assumptions
 

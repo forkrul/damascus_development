@@ -65,9 +65,9 @@ tests/unit/  tests/api/  tests/perf/
 
 ## Safeguards
 
-<!-- each Must-not becomes a property test or runtime assertion in quench -->
-- Must-not: a discount must never increase the price or take it below zero — for every subtotal `s ≥ 0` and every code, `0 ≤ discount ≤ s`. (→ Hypothesis property test.)
-- Must-not: a customer must never redeem the same code twice, even under concurrent checkouts. (→ DB unique constraint + concurrency test.)
+<!-- each Must-not (INV-NNN) becomes a property-based test or runtime assertion in quench -->
+- Must-not (INV-001): a discount must never increase the price or take it below zero — for every subtotal `s ≥ 0` and every code, `0 ≤ discount ≤ s`. (→ Hypothesis property test.)
+- Must-not (INV-002): a customer must never redeem the same code twice, even under concurrent checkouts. (→ DB unique constraint + concurrency test.)
 - Failure modes considered: code expires between apply and checkout (checkout re-validates); subtotal changes after apply (discount is recomputed from the stored code on every read, never persisted); DB failure mid-checkout (single transaction, no partial Redemption).
 - Security/privacy: refusal codes do not disclose other customers' redemptions; codes never appear in logs; no enumeration endpoint.
 

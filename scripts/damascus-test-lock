@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""damascus-test-lock — Mechanized SHA-256 Amber test freeze verifier.
+
+Enforces the `quench` Test Freeze Rule:
+- At the end of Amber (Step 3), run `damascus-test-lock lock` to record SHA-256
+  digests of all test files into `.damascus/locks/amber-tests.sha256`.
+- At Green (Step 4), run `damascus-test-lock verify` to confirm zero silent
+  modifications, deletions, or weakened assertions occurred in locked tests
+  during implementation.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+DEFAULT_TEST_DIRS = ("tests", "test", "e2e")
+DEFAULT_LOCK_FILE = Path(".damascus/locks/amber-tests.sha256.json")
+
+
+def collect_test_files(root: Path, paths: list[str]) -> list[Path]:
+    targets = [root / p for p in paths] if paths else [root / d for d in DEFAULT_TEST_DIRS if (root / d).exists()]
+    files: list[Path] = []
+    for t in targets:
+        if t.is_file():
+            files.append(t)
+        elif t.is_dir():
+            for p in sorted(t.rglob("*")):
+                if p.is_file() and "__pycache__" not in p.parts and not p.name.endswith(".pyc"):
+                    files.append(p)
+    return sorted(set(files))
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def cmd_lock(root: Path, lock_file: Path, paths: list[str], task_id: str) -> int:
+    files = collect_test_files(root, paths)
+    if not files:
+        print("FAIL: No test files found to lock at Amber.", file=sys.stderr)
+        return 1
+    digests = {str(f.relative_to(root)): sha256_file(f) for f in files}
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"task_id": task_id, "file_count": len(digests), "digests": digests}
+    lock_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(f"[LOCKED] {len(digests)} test file(s) frozen at Amber in {lock_file.relative_to(root)}")
+    return 0
+
+
+def cmd_verify(root: Path, lock_file: Path, allow_new: bool) -> int:
+    if not lock_file.is_file():
+        print(f"FAIL: No Amber test lock found at {lock_file}. Run `damascus test-lock lock` at Amber first.", file=sys.stderr)
+        return 1
+    payload = json.loads(lock_file.read_text(encoding="utf-8"))
+    locked_digests: dict[str, str] = payload.get("digests", {})
+    violations: list[str] = []
+
+    for rel_path, expected_sha in locked_digests.items():
+        fp = root / rel_path
+        if not fp.is_file():
+            violations.append(f"DELETED locked test file: {rel_path}")
+            continue
+        actual_sha = sha256_file(fp)
+        if actual_sha != expected_sha:
+            violations.append(f"MODIFIED locked test file during Green: {rel_path}")
+
+    if not allow_new:
+        current_files = {str(f.relative_to(root)) for f in collect_test_files(root, [])}
+        new_files = sorted(current_files - set(locked_digests.keys()))
+        for nf in new_files:
+            violations.append(f"ADDED unlocked test file during Green: {nf}")
+
+    if violations:
+        for v in violations:
+            print(f"[VIOLATION] {v}", file=sys.stderr)
+        print(
+            "\nFAIL: Test freeze violated during Green. Revert test edits or record an AMBER-AMEND in quench-log.md and re-lock at Amber.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"[VERIFIED] All {len(locked_digests)} Amber-locked test file(s) intact.")
+    return 0
+
+
+def cmd_unlock(lock_file: Path, reason: str) -> int:
+    if not reason.strip():
+        print("FAIL: --reason is required to unlock frozen Amber tests (must also be logged in quench-log.md).", file=sys.stderr)
+        return 1
+    if lock_file.is_file():
+        lock_file.unlink()
+    print(f"[UNLOCKED] Amber test lock removed (AMBER-AMEND reason: {reason})")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="damascus-test-lock", description="Mechanized Amber test freeze lock & verifier.")
+    parser.add_argument("action", choices=("lock", "verify", "unlock"), help="Action to run.")
+    parser.add_argument("--task", default="current", help="Task ID (e.g., T001).")
+    parser.add_argument("--path", action="append", default=[], help="Specific test file or directory to lock.")
+    parser.add_argument("--allow-new", action="store_true", help="Allow additional test files while keeping locked files immutable.")
+    parser.add_argument("--reason", default="", help="Mandatory reason when running `unlock` (AMBER-AMEND).")
+    parser.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository root.")
+    parser.add_argument("--lock-file", type=Path, default=None, help="Custom lock file path.")
+    args = parser.parse_args(argv)
+
+    root = args.repo.resolve()
+    lock_file = args.lock_file.resolve() if args.lock_file else (root / DEFAULT_LOCK_FILE)
+
+    if args.action == "lock":
+        return cmd_lock(root, lock_file, args.path, args.task)
+    if args.action == "verify":
+        return cmd_verify(root, lock_file, args.allow_new)
+    return cmd_unlock(lock_file, args.reason)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

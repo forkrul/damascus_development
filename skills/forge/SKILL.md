@@ -36,6 +36,7 @@ The upstream `superpowers:brainstorming` skill is **DENY** under this pipeline.
 ## Entry Preconditions
 
 None. This is the entry stage. The user gives you a raw idea; that's enough.
+If the host repository defines `.damascus/addenda/forge.md`, read it before starting elicitation and fold its domain-specific REASONS questions into the template below.
 
 ## Output Contract
 
@@ -105,8 +106,8 @@ Copy this into the new PRD file and elicit answers from the user section by sect
 
 ## Safeguards
 
-<!-- each Must-not becomes a property test or runtime assertion in quench -->
-- Must-not:
+<!-- each Must-not (INV-NNN) becomes a property-based test or runtime assertion in quench -->
+- Must-not (INV-001):
 - Failure modes considered:
 - Security/privacy:
 

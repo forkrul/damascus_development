@@ -15,6 +15,8 @@ quality gate, between green tests and merge. Each round: heat (critics try to re
 diff against the spec) → adjudicate (a judge dedupes and rates) → cool (apply fixes with
 tests re-run, log the round).
 
+`damascus <cmd>` below means the damascus checkout's `install.sh <cmd>` — from a consumer repo root usually `vendor/damascus/install.sh <cmd>`, inside damascus itself `./install.sh <cmd>`. No global `damascus` command is installed.
+
 The loop is fully local — critics and judge are subagents of the current session. No
 external API, key, or network access is required.
 
@@ -53,11 +55,24 @@ Refuse if:
 3. The test suite is not currently green
 4. The diff is uncommitted — hone reviews commits, not a dirty tree
 
+If the host repository defines `.damascus/addenda/hone.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`).
+
+## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
+
+Critics and the judge may be dispatched either via the session's native subagent tool OR via `damascus agent-run` (supporting local open-weight models on Ollama, `llama.cpp` / `llama-server`, `vLLM`, `LM Studio` as well as cloud CLIs `claude`, `gemini`, `codex`, `opencode`, `llm`):
+
+```bash
+damascus agent-run --probe
+damascus agent-run --role critic-a --prompt "<critic-a prompt>" --input-file specs/NNN-<slug>/diff-bundle.md
+```
+
+`damascus agent-run` automatically strips model and provider self-identification headers from critic outputs so the Judge evaluates findings **blind** to which model produced them. Never use the implementing/repairing context as the Judge. Output containing a `> rule-auditor fallback` line (`agent-run --backend auto` found no model and substituted its deterministic checks, with a `[WARN]` on stderr) is not a critic review — re-dispatch to a model or a native subagent before counting the round, or pass `--no-fallback` to make that an error.
+
 ## Review Units and the Diff Budget
 
 Review the feature diff **task by task** (quench-log records each task's commits and
 diff size). **No review unit may exceed ~400 changed lines** — beyond that, reviewer
-defect-detection collapses and findings degrade into style notes. If a single task's
+defect-detection collapses (especially on local models with 8k–32k KV caches) and findings degrade into style notes. If a single task's
 diff exceeds the budget, split the review by commit; log the oversized task as feedback
 to `anvil` (the task was cut too big) in `code-review.md`.
 
@@ -65,14 +80,17 @@ to `anvil` (the task was cut too big) in `code-review.md`.
 
 ### 1. Heat — critic panel (parallel)
 
-Dispatch **3 critic subagents in parallel**, each with a distinct lens, an **active
-procedure**, and an explicit mandate to **refute** the diff, not affirm it:
+Dispatch **3 critic subagents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/hone.md`), each with a distinct lens (80% effort), a **20% shared core correctness sweep** (calibrating cross-critic overlap on genuine blocking bugs), an **active procedure**, and an explicit mandate to **refute** the diff, not affirm it:
 
 | Critic | Lens | Active procedure (mandatory, artifact attached) |
 |--------|------|------------------------------------------------|
-| **Conformance** | code ↔ spec drift | For every FR the unit claims to satisfy, cite the `file:line` implementing it. Behavior with no FR, or an FR with no lines, = finding |
-| **Security** | vulnerabilities & unsafe defaults | Walk each external input from entry point to its sinks: validation, authn/authz, injection, secrets handling, error leakage, risky dependencies |
-| **Simplicity** | maintainability | Propose concrete deletions/simplifications — dead code, needless abstraction, duplication, complexity — or state explicitly why none exist |
+| **Conformance** (`critic-a`) | code ↔ spec drift | For every FR and `INV-NNN` safeguard the unit claims to satisfy, cite the `file:line` implementing it. Behavior with no FR, or an FR/INV with no lines, = finding |
+| **Security** (`critic-b`) | vulnerabilities & unsafe defaults | Walk each external input from entry point to its sinks: validation, authn/authz, injection, secrets handling, error leakage, resource pairing, risky dependencies |
+| **Simplicity** (`critic-c`) | maintainability | Propose concrete deletions/simplifications — dead code, needless abstraction, duplication, complexity — or state explicitly why none exist |
+
+**Anti-Sycophancy & Local-Model Context Hygiene:**
+- **Round & Grade Blindness:** Never tell Critics A, B, or C the current round number or prior round's rating (`A` / `A+`).
+- **Fresh-Critic Rotation on `A+ → A++`:** On the confirmation round following an `A+`, rotate model assignment or inject a red-team falsification framing into one critic slot.
 
 Each critic receives the review unit's diff plus the spec triplet, and returns findings
 as **BLOCKING** (would be wrong to merge) or **NIT** (cosmetic), each with `file:line`.
@@ -82,9 +100,9 @@ looked and what it couldn't check.
 "Looks good" with no findings requires the critic to show its procedure's artifact and
 state what it tried and failed to break. Opinions without the artifact are discarded.
 
-### 2. Adjudicate — judge (single)
+### 2. Adjudicate — judge (single, blind)
 
-Dispatch **1 judge subagent** with all critic findings. The judge:
+Dispatch **1 fresh judge subagent** (never the implementer/repair author context) with anonymized critic findings. The judge:
 
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
@@ -94,23 +112,29 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
   contradicts it, carries it into the next round as a targeted check for that lens, or —
   when the session cannot check it at all (it needs data or access the session doesn't
   have) — logs it as open
-- Computes the **overlap signal**: D = distinct findings after dedupe, m = findings
-  raised independently by ≥2 critics. If D ≥ 4 and m/D < 25%, the panel is sampling a
-  larger defect pool than it is exhausting — cap the round's rating at **B+** regardless
-  of blocking count
+- Computes the **stratified BLOCKING overlap signal**: let $D_B$ = distinct **BLOCKING** findings after dedupe, and $m_B$ = **BLOCKING** findings raised independently by ≥2 critics.
+  - **If $D_B \ge 4$ and $m_B / D_B < 25\%$**: the panel is sampling a blocking defect pool it hasn't exhausted — cap the round's rating at **B+**.
+  - **If $D_B = 0$**: the overlap cap **does not apply**. Disjoint NITs never cap a 0-BLOCKING round at B+.
 - Assigns the round's rating on the ladder below
 
-### 3. Cool — apply and log
+### 3. Cool — apply, mechanize revert-proofs, and log
 
 - Apply every surviving BLOCKING finding as a code edit (or explicitly reject it in the
   log with reasoning). The critic's repro is the seed for the test that guards the fix
 - **After each fix, the full test suite must be green again.** The test freeze holds
-  through hone: a fix never edits a test unless `spec.md`/`tasks.md` changed first
+  through hone: a fix never edits an existing test unless `spec.md`/`tasks.md` changed first (`damascus test-lock verify --allow-new` proves the locked tests are untouched while permitting new test files; when the Golden Rule does require changing a locked test, run `damascus test-lock unlock --reason …`, log the AMBER-AMEND in `quench-log.md`, edit, then `damascus test-lock lock` again)
 - **Every fix must be shown to fail without itself.** Revert the fix, watch the guarding
   test go red, restore it. A fix whose test passes with the fix removed has not been
-  verified — only asserted — and does not count as applied. Record the check in the log.
-- A finding that reveals a *spec* gap is not fixed here — Golden Rule: halt and route
-  back through smithy to `anvil`/`temper`
+  verified — only asserted — and does not count as applied. Do it mechanically — prose
+  claims in `code-review.md` do not count — and record both reports in the log:
+  ```bash
+  # 1. Each fix, reverted in an isolated worktree, must turn its guarding test RED (not GREEN, not an INCONCLUSIVE import/collection error):
+  damascus revert-proof --cases specs/NNN-<slug>/cases.json --report-out specs/NNN-<slug>/revert-proof-report.json
+
+  # 2. Every production file the round changed must be covered by a verified RED revert-proof:
+  damascus proof-coverage --base-ref <round-base-sha> --fix-ref HEAD --report specs/NNN-<slug>/revert-proof-report.json
+  ```
+- A finding that reveals a *spec* gap is not fixed here — Golden Rule: halt and run a 1-round **M0 Micro-Temper** (for a localized `SCR-NNN` clarification) or route back through smithy to `anvil`/`temper`
 - Append the round to `code-review.md`; if not converged, run the next round straight
   away. A round boundary is not a gate: the only stops are A++, the round cap, and a
   finding that routes back upstream
@@ -139,7 +163,8 @@ re-temper instead where the change is a real requirement change.
 
 ```
 You are an adversarial code reviewer. Your job is to REFUTE this diff against
-its spec, not to affirm it. Lens: <conformance|security|simplicity>.
+its spec, not to affirm it. Lens: <conformance|security|simplicity> (80%) +
+Shared Core Correctness Sweep (20%).
 
 Execute your active procedure FIRST and attach its artifact:
 <FR→file:line trace | input→sink walk | deletion/simplification list>
@@ -170,26 +195,23 @@ Return:
 | **F**  | Diff does not implement the spec, or breaks it |
 | **C**  | Works, but drifts from the spec or carries security smells |
 | **B**  | Faithful to spec; structural or clarity issues remain |
-| **B+** | Solid, or rating capped by the overlap signal |
+| **B+** | Solid, or rating capped by the BLOCKING overlap signal ($D_B \ge 4, m_B/D_B < 25\%$) |
 | **A**  | Every FR traced to code; no unspecced behavior; no security findings |
-| **A+** | Tight; first zero-blocking round (clean pass 1 of 2) |
-| **A++** | Two consecutive zero-blocking rounds — nothing left a reviewer would block a merge on |
+| **A+** | Tight; first zero-blocking round ($D_B = 0$, clean pass 1 of 2) |
+| **A++** | Two consecutive zero-blocking rounds ($D_B = 0$) — nothing left a reviewer would block a merge on |
 
 ## Convergence Rule
 
-**A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean
+**A++ requires two consecutive rounds with zero BLOCKING findings ($D_B = 0$).** A single clean
 round earns at most A+; the second confirms the first wasn't luck. A round capped by the
-overlap signal cannot count as clean — disjoint findings mean undiscovered defects remain.
+BLOCKING overlap signal ($D_B \ge 4$ and $m_B/D_B < 25\%$) cannot count as clean. Disjoint NITs never cap a round when $D_B = 0$.
 
 **A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted
 check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's output
 in the log). One logged as open does not block convergence; the gate lists it under Needs
 your call.
 
-**A round is clean only if the previous round's fixes were in the diff its critics
-reviewed.** Zero blocking findings against code nobody looked at is not a signal. This is
-the same principle as the overlap cap: the rating measures what the panel *examined*, not
-what it happened to return.
+**A round is clean only if the previous round's fixes were verified by `damascus revert-proof` + `damascus proof-coverage` and were in the diff its critics reviewed.** Zero blocking findings against code nobody looked at is not a signal. This is the same principle as the overlap cap: the rating measures what the panel *examined*, not what it happened to return.
 
 ## Iteration Cap
 
@@ -221,40 +243,31 @@ spec (back to `temper`) or an oversized task (back to `anvil`).
 
 ## Refusal Behavior
 
-If the user asks to skip hone "just this once", remind them: green tests prove the code
-does what the tests say, not that it should be merged. Offer `smithy --skip hone`, which
-records the bypass in the orchestrator log so the team knows where the QA gap is. Don't
-silently bypass.
+If the user asks to skip hone "just this once", remind them: green tests prove the code does what the tests say, not that it should be merged. Offer `smithy --skip hone`, which records the bypass in the orchestrator log so the team knows where the QA gap is. Don't silently bypass.
 
 ## Gate to Completion
 
 Hone is **complete** when:
-
 - [ ] `code-review.md` exists and its latest round is **A++** (two consecutive zero-blocking rounds)
-- [ ] Every applied fix is committed and the full suite is green (quench's hardening gates re-pass)
+- [ ] Every applied fix is committed, verified by `damascus revert-proof` + `damascus proof-coverage`, and the full suite is green
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 
 When complete, lead with **Needs your call** — findings rejected in the log, UNCONFIRMED
 findings logged as open, NITs deferred as follow-ups, any amendment to a tempered
 artifact, tasks logged as anvil feedback — or "nothing", then say:
 
-> "Hone complete: A++ reached after N round(s). Pipeline complete. Use
-> `superpowers:finishing-a-development-branch` for merge/PR (KEEP-listed)."
+> "Hone complete: A++ reached after N round(s). Pipeline complete. Use `superpowers:finishing-a-development-branch` for merge/PR (KEEP-listed)."
 
 ## Golden Rule (Fowler)
 
 > When reality diverges from the prompt, fix the prompt before the code.
 
-Hone's findings split cleanly under the Golden Rule: code that diverges from the spec is
-fixed *here*; a spec that diverges from what the code needed to be is fixed *upstream* —
-halt, route back through smithy, re-temper, and let the change flow forward. Never patch
-the code into a shape the spec doesn't describe.
+Hone's findings split cleanly under the Golden Rule: code that diverges from the spec is fixed *here*; a spec that diverges from what the code needed to be is fixed *upstream* (via a 1-round M0 Micro-Temper or routing back through smithy). Never patch the code into a shape the spec doesn't describe.
 
 ## Composition
 
 - Reads the diff produced by `quench` (via `quench-log.md`'s per-task record)
-- Critics/judge dispatch via the session's subagent mechanism; pairs with
-  `superpowers:dispatching-parallel-agents` (KEEP)
+- Critics/judge dispatch via `damascus agent-run` or the session's subagent mechanism; pairs with `superpowers:dispatching-parallel-agents` (KEEP)
 - Applies findings with the posture of `superpowers:receiving-code-review` (KEEP)
 - Hands off to `superpowers:finishing-a-development-branch` (KEEP) for merge/PR
 

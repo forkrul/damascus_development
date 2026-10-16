@@ -10,6 +10,8 @@ effort: medium
 
 Tempers the `spec.md` / `plan.md` / `tasks.md` triplet produced by `anvil` through repeated **local adversarial review rounds** until it earns an **A++** rating. Each round: heat (a panel of critic subagents tries to refute the triplet) → adjudicate (a judge dedupes and rates) → cool (apply fixes, log the round). This is the pipeline's quality gate; nothing reaches `quench` (and therefore code) until temper signs off.
 
+`damascus <cmd>` below means the damascus checkout's `install.sh <cmd>` — from a consumer repo root usually `vendor/damascus/install.sh <cmd>`, inside damascus itself `./install.sh <cmd>`. No global `damascus` command is installed.
+
 The loop is fully local — critics and judge are subagents of the current session. No external API, key, or network access is required.
 
 **Announce at start:** "I'm using the temper skill to iterate the spec to A++ via adversarial review."
@@ -37,27 +39,43 @@ Refuse if:
 3. `specs/NNN-<slug>/tasks.md` does not exist
 4. Any of the three is empty or contains only template scaffolding
 
+If the host repository defines `.damascus/addenda/temper.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`).
+
+## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
+
+Critics and the judge may be dispatched either via the session's native subagent tool OR via `damascus agent-run` (which supports local open-weight models on Ollama, `llama.cpp` / `llama-server`, `vLLM`, `LM Studio` as well as cloud CLIs `claude`, `gemini`, `codex`, `opencode`, `llm`):
+
+```bash
+damascus agent-run --probe
+damascus agent-run --role critic-a --prompt "<critic-a prompt>" --input-file specs/NNN-<slug>/bundle.md
+```
+
+`damascus agent-run` automatically strips model and provider self-identification headers from critic outputs so the Judge evaluates findings **blind** to which model produced them. Never use the authoring/editing context as the Judge. Output containing a `> rule-auditor fallback` line (`agent-run --backend auto` found no model and substituted its deterministic checks, with a `[WARN]` on stderr) is not a critic review — re-dispatch to a model or a native subagent before counting the round, or pass `--no-fallback` to make that an error.
+
 ## The Adversarial Round
 
 Each round has three phases:
 
 ### 1. Heat — critic panel (parallel)
 
-Dispatch **3 critic subagents in parallel**, each with a distinct lens, an **active procedure**, and an explicit mandate to **refute** the triplet, not affirm it:
+Dispatch **3 critic subagents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/temper.md`), each with a distinct lens (80% effort), a **20% shared core check** (FR↔task mapping & top-level contradiction sweep, ensuring statistical calibration for capture-recapture overlap), an **active procedure**, and an explicit mandate to **refute** the triplet, not affirm it:
 
 | Critic | Lens | Active procedure (mandatory, artifact attached) | Hunts for |
 |--------|------|------------------------------------------------|-----------|
-| **Completeness** | ambiguity & gaps | Re-derive the Entities and Operations lists from the Requirements section *alone*; every mismatch with the written sections = finding | unstated requirements, undefined terms, FRs that aren't testable, SCs without a verification method, missing failure modes |
-| **Feasibility** | architecture & ordering | Trace one full data flow (input → processing → storage → output) through the plan's phases; every step needing an unstated decision = finding | plan steps that can't work as written, hidden dependencies, phase-ordering errors, handwaved migrations or integrations |
-| **Testability** | decomposition & verification | Draft a one-line test skeleton per FR from the spec text *alone*; every FR whose skeleton can't be written without asking the author = finding | tasks not independently verifiable, missing file paths, FRs unmapped to tasks, BDD scenarios that could never fail, scope creep |
+| **Completeness** (`critic-a`) | ambiguity & gaps | Re-derive the Entities and Operations lists from the Requirements section *alone*; every mismatch with the written sections = finding | unstated requirements, undefined terms, FRs missing `[DELTA]`/`[INVARIANT]` tags, SCs without a verification method, missing failure modes |
+| **Feasibility** (`critic-b`) | architecture & ordering | Trace one full data flow (input → processing → storage → output) through the plan's phases; every step needing an unstated decision = finding | plan steps that can't work as written, hidden dependencies, phase-ordering errors, tasks exceeding the ≤400-line diff budget |
+| **Testability & Non-Vacuity** (`critic-c`) | decomposition, verification & vacuity | Draft a one-line test skeleton + **Vacuity Check** (name one concrete single-line mutation or stub that would falsify each `SC-NNN`) from the spec text *alone*; every FR/SC that can't be falsified = finding | vacuous SCs (satisfied by a no-op/stub), tasks not independently verifiable, unmapped FRs or `INV-NNN` safeguards, BDD scenarios that could never fail |
 
-Each critic receives the full triplet and returns findings classified as **BLOCKING** (a competent implementer would have to ask the author — the critic writes down that question) or **NIT** (cosmetic), plus anything it suspects but couldn't confirm as **UNCONFIRMED**, saying where it looked and what it couldn't check. Critics must attempt refutation; "looks good" with no findings requires the critic to attach its procedure artifact and state what it tried and failed to break. Opinions without the artifact are discarded by the judge.
+**Anti-Sycophancy & Local-Model Context Hygiene:**
+- **Round & Grade Blindness:** Never tell Critics A, B, or C the current round number or prior round's rating (`A` / `A+`). Knowing a round is the final `A++` confirmation pass induces sycophantic leniency.
+- **Delta Context Passing:** In Round $N > 1$, pass the current `spec.md`/`plan.md`/`tasks.md` triplet plus a compact `git diff` of Round $N-1$'s edits — never pass the full cumulative `review.md` history into critic prompts (avoids anchoring and keeps prompts compact for 8k–32k local model KV caches).
+- **Fresh-Critic Rotation on `A+ → A++`:** On the confirmation round following an `A+`, rotate model assignment or inject a red-team devil's-advocate framing into one critic slot.
 
-The procedures differ per critic **on purpose**: same-model critics correlate, so varying *what each one does* with the artifact buys more independence than varying the adjective in its prompt.
+Each critic receives the full triplet and returns findings classified as **BLOCKING** (a competent implementer would have to ask the author — the critic writes down that question — or an SC is vacuous) or **NIT** (cosmetic), plus anything it suspects but couldn't confirm as **UNCONFIRMED**, saying where it looked and what it couldn't check. Critics must attempt refutation; "looks good" with no findings requires the critic to attach its procedure artifact and state what it tried and failed to break. Opinions without the artifact are discarded by the judge.
 
-### 2. Adjudicate — judge (single)
+### 2. Adjudicate — judge (single, blind)
 
-Dispatch **1 judge subagent** with all critic findings. The judge:
+Dispatch **1 fresh judge subagent** (never the author/editor context) with anonymized critic findings. The judge:
 
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
@@ -65,7 +83,9 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 - Downgrades to NIT any BLOCKING finding that names no question an implementer would have to ask
 - Settles each UNCONFIRMED: confirms it (BLOCKING or NIT), kills it when the evidence contradicts it, carries it into the next round as a targeted check for that lens, or — when the session cannot check it at all (it needs data or access the session doesn't have) — logs it as open
 - Classifies survivors as BLOCKING or NIT
-- Computes the **overlap signal** (capture-recapture logic): D = distinct findings after dedupe, m = findings raised independently by ≥2 critics. If D ≥ 4 and m/D < 25%, the critics are sampling a defect pool they haven't exhausted — near-disjoint finding sets mean more defects remain undiscovered. Cap the round's rating at **B+** regardless of blocking count
+- Computes the **stratified BLOCKING overlap signal** (capture-recapture logic): let $D_B$ = distinct **BLOCKING** findings after dedupe, and $m_B$ = **BLOCKING** findings raised independently by ≥2 critics.
+  - **If $D_B \ge 4$ and $m_B / D_B < 25\%$**: the critics are sampling a blocking defect pool they haven't exhausted — cap the round's rating at **B+**.
+  - **If $D_B = 0$**: the overlap cap **does not apply**. Because NITs are naturally lens-specific (Completeness vs. Feasibility vs. Testability), disjoint NITs never cap a 0-BLOCKING round at B+.
 - Assigns the round's rating on the ladder below
 
 ### 3. Cool — apply and log
@@ -74,17 +94,24 @@ Dispatch **1 judge subagent** with all critic findings. The judge:
 - Append the round to `review.md`
 - If not converged, run the next round straight away. A round boundary is not a gate: the only stops are A++, the round cap, and a finding that sends work back to `anvil` or `forge`
 
+## M0 Micro-Temper (For Mid-Quench / Mid-Hone Golden-Rule Amendments)
+
+When implementation during `quench` or `hone` reveals a localized spec inaccuracy (Golden Rule):
+1. Record a **Spec Change Record (`SCR-NNN`)** at the bottom of `spec.md` (`Trigger`, `Changed FR/SC/Task`, `Blast Radius`).
+2. Run a **single-round M0 Micro-Temper** scoped to `SCR-NNN` and its directly affected FRs/tasks. If all 3 critics return 0 `BLOCKING` findings on the amendment, ratify `SCR-NNN` in 1 round and resume `quench`/`hone`. If any `BLOCKING` finding is raised or the change alters core architecture, run a full `temper` cycle.
+
 ## Critic Prompt Template
 
 ```
 You are an adversarial reviewer. Your job is to REFUTE this spec/plan/tasks
-triplet, not to affirm it. Lens: <completeness|feasibility|testability>.
+triplet, not to affirm it. Lens: <completeness|feasibility|testability> (80%) +
+Shared Core FR-to-Task & Contradiction Sweep (20%).
 
 Execute your active procedure FIRST and attach its artifact:
-<re-derived Entities+Operations | end-to-end data-flow trace | per-FR test skeletons>
+<re-derived Entities+Operations | end-to-end data-flow trace | per-FR test skeletons + per-SC vacuity falsifier>
 
 A++ bar: a competent engineer could implement this without asking the author
-a single question. Find every place that bar fails.
+a single question, and no SC can be satisfied by a stub. Find every place that bar fails.
 
 Return:
 - Your procedure artifact
@@ -110,7 +137,7 @@ Return:
 ## Round 1 — YYYY-MM-DD HH:MM
 - Critics: completeness, feasibility, testability
 - Blocking: 4  Unconfirmed: 1 (carried)  Nits: 7 (5 killed by judge)
-- Overlap: 2/6 (33% — no cap)
+- Blocking Overlap (m_B / D_B): 2/4 (50% — no cap)
 - Rating: B+
 - Findings applied:
   1. spec.md FR-007 conflated two concerns (split into FR-007a/FR-007b)
@@ -120,7 +147,8 @@ Return:
 
 ## Round 2 — …
 - Carried from round 1: feasibility UNCONFIRMED (does the queue client support batching?) — targeted check: client docs + plan.md Dependencies → supported; killed
-- Blocking: 0  Unconfirmed: 0  Nits: 2 (killed)
+- Blocking: 0  Unconfirmed: 0  Nits: 4 (disjoint NITs do not cap when D_B = 0)
+- Blocking Overlap (m_B / D_B): 0/0 (N/A — D_B = 0)
 - Rating: A+  (clean pass 1 of 2)
 
 ## Round 3 — …
@@ -136,18 +164,18 @@ Return:
 | **D**  | Major gaps; reader cannot reconstruct intent |
 | **C**  | Acceptable but vague; multiple ambiguous FRs |
 | **B**  | Most FRs are testable; some gaps; tasks underspecified |
-| **B+** | Solid; one or two structural issues |
+| **B+** | Solid; one or two structural issues (or $D_B \ge 4$ with $m_B/D_B < 25\%$) |
 | **A**  | Clear, mostly testable, all FRs mapped to tasks |
-| **A+** | Tight; SCs measurable; assumptions explicit |
-| **A++** | Reader implementing this would not need to ask the author a question |
+| **A+** | Tight; SCs measurable & non-vacuous; first 0-BLOCKING round |
+| **A++** | Two consecutive 0-BLOCKING rounds; implementer needs zero clarifications |
 
 ## Convergence Rule
 
-**A++ requires two consecutive rounds with zero BLOCKING findings.** A single clean round earns at most A+ — the second consecutive clean round confirms the first wasn't luck and upgrades to A++. This is loop-until-dry, not loop-until-lucky.
+**A++ requires two consecutive rounds with zero BLOCKING findings ($D_B = 0$).** A single clean round earns at most A+ — the second consecutive clean round confirms the first wasn't luck and upgrades to A++. This is loop-until-dry, not loop-until-lucky.
 
 **A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's result in the log). One logged as open does not block convergence; the gate lists it under Needs your call.
 
-The overlap signal feeds this rule: a round capped at B+ for low overlap can never count as clean — when the critics' finding sets are near-disjoint, the pool of undiscovered defects is larger than the pool they surfaced, whatever the blocking count says.
+The stratified BLOCKING overlap signal feeds this rule: when $D_B \ge 4$ and $m_B / D_B < 25\%$, the round is capped at B+ — the critics' blocking finding sets are near-disjoint, so the pool of undiscovered defects is larger than the pool they surfaced, whatever the blocking count says — and a capped round can never count as clean. When $D_B = 0$, NIT overlap never caps the grade.
 
 ## Iteration Cap
 

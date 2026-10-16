@@ -8,13 +8,13 @@
 - **[P]**: parallel-safe — different files, no dependency on another unchecked task in its phase
 - **[Story]**: US1 / US2 / US3 from spec.md
 - **Tags**: `[UX]` browser-facing → Playwright in quench · `[REFACTOR]` changes existing behaviour → characterization tests first · `[HARD]` genuinely tricky → quench sample-and-select
-- Every task: file paths, `Satisfies:` FR(s), `Gate:` (true before it is checked off). Budget: ≤ ~400 changed lines per task.
+- Every task: file paths, `Satisfies:` FR(s) and INV(s), `Gate:` (true before it is checked off). Budget: ≤ ~400 changed lines per task.
 
 ## Phase 1: Foundation
 
 - [x] T001 [US1] Add `DiscountCode` and `Redemption` models and the Alembic migration creating both tables plus `carts.discount_code_id`
   - Files: `src/shop/discounts/__init__.py`, `src/shop/discounts/models.py`, `alembic/versions/20260310_discount_codes.py`, `tests/unit/test_models.py`
-  - Satisfies: FR-001 (stored applied code), FR-004 (Redemption uniqueness)
+  - Satisfies: FR-001 (stored applied code), FR-004 (Redemption uniqueness), INV-002 (unique constraint)
   - Gate: migration upgrade/downgrade round-trips on an empty DB; a duplicate `(code_id, customer_id)` insert raises `IntegrityError`; `mypy --strict` clean
 
 ## Phase 2: Core
@@ -25,7 +25,7 @@
   - Gate: `spring20` finds `SPRING20`; inactive code → none; record then `has_redeemed` → true; query plan shows the index; 0 mutation survivors
 - [x] T003 [US1] [HARD] Pure discount computation: `percent` with half-up rounding, `fixed`, clamp to `[0, subtotal]`, applied to the post-sale subtotal
   - Files: `src/shop/discounts/pricing.py`, `tests/unit/test_pricing.py`
-  - Satisfies: FR-002
+  - Satisfies: FR-002, INV-001
   - Gate: example tests for every spec edge case (0, 100 %, 151.5 → 152, 2.5 → 3, fixed > subtotal); Hypothesis property `0 ≤ discount ≤ subtotal` green at `max_examples=10000` (SC-001); ruff banned-`float` rule clean; 0 mutation survivors
 
 ## Phase 3: API
@@ -43,7 +43,7 @@
 
 - [x] T006 [US3] Checkout hook: re-check expiry, write the Redemption inside the checkout transaction, map a unique violation to `409 code_already_redeemed`; apply-time `409` for a customer who already redeemed; guests skip
   - Files: `src/shop/checkout.py`, `src/shop/discounts/router.py`, `tests/api/test_checkout_redemption.py`, `tests/features/cart-discount-codes.feature` (US3 steps)
-  - Satisfies: FR-003 (checkout re-check), FR-004
+  - Satisfies: FR-003 (checkout re-check), FR-004, INV-002 (concurrency)
   - Gate: US3 scenarios 1–3 green; two concurrent checkouts yield exactly one Redemption row and one `409`; guest checkout writes no Redemption; suite stable-green 3/3
 
 ## FR → task map
