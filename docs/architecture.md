@@ -64,12 +64,12 @@ sequenceDiagram
     participant M as Main session
     participant C as 3 critics (parallel)
     participant J as Judge
-    M->>C: artifact + lens + active procedure
+    M->>C: artifact + lens + active procedure<br/>(never the round number or the prior grade)
     Note over C: each critic must REFUTE, not affirm
     C-->>J: BLOCKING / NIT / UNCONFIRMED findings,<br/>each with its procedure artifact
     Note over J: dedupe, kill critic theater,<br/>discard findings without artifacts
     J->>J: settle each UNCONFIRMED:<br/>confirm, kill, carry forward, or log as open
-    J->>J: overlap signal: D ≥ 4 and m/D under 25% caps the round at B+
+    J->>J: overlap signal over BLOCKING findings only:<br/>D_B ≥ 4 and m_B/D_B under 25% caps the round at B+
     J-->>M: rating for the round
     M->>M: cool: apply BLOCKING fixes (or reject them in the log), append the round
     alt not converged and under the round cap
@@ -83,7 +83,7 @@ A round is **clean** only with zero BLOCKING findings, no UNCONFIRMED carried fo
 overlap cap — and, in hone, only if the previous round's fixes were in the diff its critics
 saw. Temper's blocking findings quote the question an implementer would have to ask; hone's
 carry a repro (a failing test, an input or a command), and every hone fix is shown to fail
-without itself. Temper caps at 5 rounds, hone at 3; hitting the cap escalates to you.
+without itself — mechanically, with `damascus revert-proof` and `damascus proof-coverage`. Temper caps at 5 rounds, hone at 3; hitting the cap escalates to you.
 
 Sources: [`skills/temper/SKILL.md`](https://github.com/forkrul/damascus_development/blob/master/skills/temper/SKILL.md) ·
 [`skills/hone/SKILL.md`](https://github.com/forkrul/damascus_development/blob/master/skills/hone/SKILL.md)
@@ -91,7 +91,7 @@ Sources: [`skills/temper/SKILL.md`](https://github.com/forkrul/damascus_developm
 ## Red-amber-green, per task
 
 Standard TDD goes red → green. Quench inserts **amber**: the test must fail for the
-right reason before any implementation exists — and from amber on, the test is frozen.
+right reason before any implementation exists — and from amber on, the test is frozen (`damascus test-lock`).
 
 ```mermaid
 stateDiagram-v2
@@ -104,7 +104,8 @@ stateDiagram-v2
     Gated --> Red: static finding on a changed line
     Gated --> [*]: gates pass or are waived in the log, task checked off
     note right of Amber
-        test frozen: it changes only after
+        test frozen (damascus test-lock):
+        it changes only after
         spec.md or tasks.md changes first
     end note
     note right of Gated
