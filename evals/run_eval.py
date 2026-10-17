@@ -557,14 +557,48 @@ def check_corpus() -> list[str]:
     return errors
 
 
-def run_live_llm_corpus_eval(backend: str = "auto", out_dir: Path | None = None) -> dict[str, Any]:
+def run_live_llm_corpus_eval(
+    backend: str = "auto", out_dir: Path | None = None, runs: int = 1, timeout_s: float = 170.0
+) -> dict[str, Any]:
     """Optional live LLM benchmark over every corpus case, including the clean control.
 
-    Each prompt and raw reply is saved under `out_dir` so the score can be audited.
+    Each prompt and raw reply is saved under `out_dir` so the score can be audited. With
+    `runs` > 1 the corpus is sent `runs` times (replies under `run-<k>/`) and the report
+    adds the spread: replies vary from run to run, so one run is a rough reading.
     """
-    seeded, clean = load_corpus_cases()
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_dir = out_dir or LIVE_RUNS_DIR / f"{ts}-{backend}"
+    if runs <= 1:
+        return live_llm_corpus_run(backend, out_dir, timeout_s)
+    per_run = [live_llm_corpus_run(backend, out_dir / f"run-{k}", timeout_s) for k in range(1, runs + 1)]
+    recalls = [r["recall"] for r in per_run]
+    found_rate: dict[str, float] = {}
+    for r in per_run:
+        for c in r["cases"]:
+            for d in c["matched"]:
+                found_rate[d] = found_rate.get(d, 0) + 1 / runs
+    report = {
+        "backend": backend,
+        "runs": len(per_run),
+        "answered_by": per_run[0]["answered_by"] if len({r["answered_by"] for r in per_run}) == 1 else "mixed",
+        "total_defects": per_run[0]["total_defects"],
+        "matched_defects_per_run": [r["matched_defects"] for r in per_run],
+        "recall_mean": round(sum(recalls) / len(recalls), 2),
+        "recall_min": min(recalls),
+        "recall_max": max(recalls),
+        "clean_false_positives_per_run": [r["clean_false_positives"] for r in per_run],
+        "errored_cases_per_run": [r["errored_cases"] for r in per_run],
+        "defect_found_rate": {d: round(v, 2) for d, v in sorted(found_rate.items())},
+        "echo_baseline": per_run[0]["echo_baseline"],
+        "replies_dir": str(out_dir),
+    }
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
+def live_llm_corpus_run(backend: str, out_dir: Path, timeout_s: float) -> dict[str, Any]:
+    """One pass over the corpus; see run_live_llm_corpus_eval."""
+    seeded, clean = load_corpus_cases()
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd_tail = ["--no-fallback"] if backend not in ("auto", "rule-auditor") else []
     case_results: list[dict[str, Any]] = []
@@ -574,8 +608,8 @@ def run_live_llm_corpus_eval(backend: str = "auto", out_dir: Path | None = None)
         role = "critic-b" if "diff" in case else "critic-a"
         proc = run_cmd(
             [sys.executable, str(SCRIPTS_DIR / "damascus-agent-run"), "--backend", backend, "--role", role,
-             "--timeout", "170", "--prompt", prompt, *cmd_tail],
-            timeout_s=180.0,
+             "--timeout", str(timeout_s), "--prompt", prompt, *cmd_tail],
+            timeout_s=timeout_s + 10,
         )
         (out_dir / f"{case['id']}.prompt.txt").write_text(prompt, encoding="utf-8")
         (out_dir / f"{case['id']}.reply.txt").write_text(proc.stdout + (f"\n--- stderr ---\n{proc.stderr}" if proc.stderr else ""), encoding="utf-8")
@@ -683,6 +717,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Where --live-llm saves each prompt and raw reply (default: .damascus/eval-runs/<UTC time>-<backend>/).",
     )
     parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="With --live-llm, send the corpus this many times and report the spread (default: 1).",
+    )
+    parser.add_argument(
+        "--critic-timeout",
+        type=float,
+        default=170.0,
+        help="With --live-llm, seconds each critic call may take before it counts as an errored case (default: 170).",
+    )
+    parser.add_argument(
         "--check-corpus",
         action="store_true",
         help="Only self-check the live-eval scorer and seeded corpus (echo scores 0, each defect matches its own description); exit 1 on failure.",
@@ -721,7 +767,9 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     if args.live_llm:
-        report["live_llm_corpus"] = run_live_llm_corpus_eval(args.backend, args.out_dir)
+        report["live_llm_corpus"] = run_live_llm_corpus_eval(
+            args.backend, args.out_dir, runs=args.runs, timeout_s=args.critic_timeout
+        )
 
     if args.record:
         append_results_tsv(
@@ -741,7 +789,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"=== Damascus Evaluation Harness (J_damascus = {total_score:.2f} / 100.00) ===")
         for line in report["notes"]:
             print(f"  {line}")
-        if args.live_llm:
+        if args.live_llm and "runs" in report["live_llm_corpus"]:
+            llm_res = report["live_llm_corpus"]
+            label = "LIVE-LLM" if llm_res["answered_by"] == "model" else "RULE-AUDITOR"
+            total = llm_res["total_defects"]
+            print(
+                f"  [{label}] {llm_res['runs']} runs — recall per run: "
+                + ", ".join(f"{m}/{total}" for m in llm_res["matched_defects_per_run"])
+                + f" (mean {llm_res['recall_mean'] * 100:.0f}%, min {llm_res['recall_min'] * 100:.0f}%, max {llm_res['recall_max'] * 100:.0f}%)"
+            )
+            print("    clean-control BLOCKING findings per run: " + ", ".join(map(str, llm_res["clean_false_positives_per_run"])))
+            for k, errs in enumerate(llm_res["errored_cases_per_run"], 1):
+                if errs:
+                    print(f"    [WARN] run {k}: backend failed on {', '.join(errs)}; that run's totals are incomplete")
+            rates = llm_res["defect_found_rate"]
+            print("    found in share of runs: " + ", ".join(f"{d} {r * 100:.0f}%" for d, r in rates.items()) + (" (others never)" if len(rates) < total else ""))
+            print(f"    prompts and raw replies: {llm_res['replies_dir']}/run-<k>/")
+        elif args.live_llm:
             llm_res = report["live_llm_corpus"]
             label = "LIVE-LLM" if llm_res["answered_by"] == "model" else "RULE-AUDITOR"
             note = "" if label == "LIVE-LLM" else " (deterministic pattern checks, not a model review)"
