@@ -34,6 +34,9 @@ AGENT_FILES = (
     "playwright-e2e-tester.md",
     "fastapi-implementer.md",
     "labcoat.md",
+    "temper-critic.md",
+    "hone-critic.md",
+    "review-judge.md",
 )
 
 
@@ -304,7 +307,7 @@ def eval_protocol_and_model_agnosticism() -> tuple[float, list[str]]:
         "damascus agent-run" in temper_text and "damascus agent-run" in hone_text
     ):
         score += 5.0
-        notes.append("[PASS] All 5 agents use `model: inherit` and temper/hone integrate `damascus agent-run` (5.0 pts)")
+        notes.append(f"[PASS] All {len(AGENT_FILES)} agents use `model: inherit` and temper/hone integrate `damascus agent-run` (5.0 pts)")
     else:
         notes.append("[FAIL] Hardcoded model: sonnet or missing damascus agent-run integration")
 
@@ -667,7 +670,7 @@ def eval_simplicity_regularizer() -> tuple[float, int, list[str]]:
     score = round(max(0.0, 15.0 - penalty), 2)
     notes.insert(
         0,
-        f"[{'PASS' if score == 15.0 else 'WARN'}] Prompt simplicity budget: {total_lines} total lines across 6 skills + 5 agents ({score} / 15.0 pts)",
+        f"[{'PASS' if score == 15.0 else 'WARN'}] Prompt simplicity budget: {total_lines} total lines across 6 skills + {len(AGENT_FILES)} agents ({score} / 15.0 pts)",
     )
     return score, total_lines, notes
 

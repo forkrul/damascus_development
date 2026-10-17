@@ -18,6 +18,21 @@ trap 'rm -rf "$TMP"' EXIT
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 damascus() { "$SMOKE_BASH" "$DAMASCUS/install.sh" "$@"; }
 
+# --- relpath unit checks (install.sh sourced: defines functions, runs nothing) ---
+# shellcheck disable=SC2016 # $1..$3 expand inside the child shell, by design
+rp() { "$SMOKE_BASH" -c '. "$1/install.sh"; relpath "$2" "$3"' _ "$DAMASCUS" "$@"; }
+[ "$(rp /r/vendor/damascus/skills/forge /r/.claude/skills)" = "../../vendor/damascus/skills/forge" ] \
+  || fail "relpath: wrong relative path"
+[ "$(rp /r/x /r/x)" = "." ] || fail "relpath: same dir should be ."
+# no common root (e.g. two drives under Git Bash) must return 1, not loop forever
+if command -v timeout >/dev/null 2>&1; then
+  rc=0
+  # shellcheck disable=SC2016
+  timeout 5 "$SMOKE_BASH" -c '. "$1/install.sh"; relpath "C:/a/b" "D:/x/y"' _ "$DAMASCUS" >/dev/null || rc=$?
+  [ "$rc" -ne 124 ] || fail "relpath: looped on paths with no common root"
+  [ "$rc" -ne 0 ] || fail "relpath: paths with no common root should return 1"
+fi
+
 cd "$TMP"
 git init -q .
 
@@ -36,7 +51,7 @@ for name in forge anvil temper quench hone smithy prd-authoring speckit-decompos
   [ -f ".claude/skills/$name/SKILL.md" ] || fail "skills/$name has no SKILL.md"
 done
 for agent in bdd-scenario-writer tdd-test-generator playwright-e2e-tester \
-             fastapi-implementer labcoat; do
+             fastapi-implementer labcoat temper-critic hone-critic review-judge; do
   [ -L ".claude/agents/$agent.md" ] || fail "agents/$agent.md not linked"
   [ -e ".claude/agents/$agent.md" ] || fail "agents/$agent.md is a broken link"
 done
