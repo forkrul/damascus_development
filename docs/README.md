@@ -6,7 +6,7 @@ This folder is a [Sphinx](https://www.sphinx-doc.org/) site that also reads well
 |------|----------------|
 | [Architecture](architecture.md) | The contracts as diagrams: pipeline and artifacts, smithy's state machine, the adversarial review round, red-amber-green, parallel `[P]` tasks, how `install.sh` places a link, the superpowers policy |
 | [Configuration and CLI reference](reference.md) | Running the `damascus` commands; model routing (`.damascus/models.conf`, `DAMASCUS_*` variables); every gate's flags and file formats; stage addenda; the evaluation harness and live critic benchmark |
-| [Production readiness](production-readiness.md) | The phased single-founder plan, kept as a record; what is still open |
+| [Production readiness](production-readiness.md) | The phased single-founder plan, kept as a record |
 | [Hero image provenance](assets/README.md) | How `hero.png` was made and why it carries no lettering |
 
 The rest of the site is generated at build time from the files that ship, so there is

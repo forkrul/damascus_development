@@ -17,10 +17,10 @@ choice below: prefer automation over process, CI gates over human review, and
 scheduled bots over remembering things.
 
 > **Status (2026-10):** this is the plan as written before the work, kept as a
-> record; checked boxes are done. `v0.1.0` is
-> [released](https://github.com/forkrul/damascus_development/releases/tag/v0.1.0).
-> One item is still open: **branch protection on `master`** (require PR + green CI,
-> no force-push, no required approver count), set in repo Settings → Branches.
+> record; checked boxes are done. Releases are on the
+> [Releases page](https://github.com/forkrul/damascus_development/releases), and
+> `master` is protected by a repository ruleset (pull request required, no
+> force-push, no deletion, no required approver count).
 > Where an item below describes the starting point — bash ≥ 4, GNU coreutils —
 > Phase 1 removed it: `install.sh` now runs on stock macOS bash 3.2.
 
@@ -92,7 +92,10 @@ Consumers add damascus as a submodule — today they can only pin an opaque SHA 
       `git -C vendor/damascus checkout v0.1.0` — and add an **Upgrading** section
       (checkout new tag → commit pointer → re-run `install.sh`; the install is
       idempotent and prunes/refreshes its own links).
-- [ ] **Branch protection on `master`**: require PR + green CI, no force-push.
+- [x] **Branch protection on `master`**: require PR + green CI, no force-push.
+      *(Done as a repository ruleset on the default branch: pull request
+      required, force-push and deletion blocked. Green CI is enforced by the
+      merge flow rather than a required status check.)*
       Do **not** require a second approver — that deadlocks a solo maintainer;
       CI is the gate, and the temper-style self-review discipline covers the rest.
 
