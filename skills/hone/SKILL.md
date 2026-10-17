@@ -97,8 +97,6 @@ as **BLOCKING** (would be wrong to merge) or **NIT** (cosmetic), each with `file
 A BLOCKING finding must show how it fails — a failing test, a repro input, or a command
 and its output. A suspicion the critic couldn't show is **UNCONFIRMED**, with where it
 looked and what it couldn't check.
-"Looks good" with no findings requires the critic to show its procedure's artifact and
-state what it tried and failed to break. Opinions without the artifact are discarded.
 
 ### 2. Adjudicate — judge (single, blind)
 
@@ -200,11 +198,10 @@ Return:
 | **A+** | Tight; first zero-blocking round ($D_B = 0$, clean pass 1 of 2) |
 | **A++** | Two consecutive zero-blocking rounds ($D_B = 0$) — nothing left a reviewer would block a merge on |
 
-## Convergence Rule
+## Convergence Rule and Cap
 
-**A++ requires two consecutive rounds with zero BLOCKING findings ($D_B = 0$).** A single clean
-round earns at most A+; the second confirms the first wasn't luck. A round capped by the
-BLOCKING overlap signal ($D_B \ge 4$ and $m_B/D_B < 25\%$) cannot count as clean. Disjoint NITs never cap a round when $D_B = 0$.
+**A++ requires two consecutive rounds with zero BLOCKING findings ($D_B = 0$).** A single clean round
+earns at most A+; the second confirms the first wasn't luck. A round capped by the overlap signal cannot count as clean.
 
 **A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted
 check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's output
@@ -212,8 +209,6 @@ in the log). One logged as open does not block convergence; the gate lists it un
 your call.
 
 **A round is clean only if the previous round's fixes were verified by `damascus revert-proof` + `damascus proof-coverage` and were in the diff its critics reviewed.** Zero blocking findings against code nobody looked at is not a signal. This is the same principle as the overlap cap: the rating measures what the panel *examined*, not what it happened to return.
-
-## Iteration Cap
 
 **Maximum 3 rounds**, then escalate to the user with the stuck findings. Quench's
 mechanical gates already caught what tools can catch; three rounds of human-shaped
@@ -224,22 +219,11 @@ spec (back to `temper`) or an oversized task (back to `anvil`).
 
 - **Don't review the diff yourself in the main session.** You (or your subagents) wrote
   this code; fresh critics without the authoring context are the point.
-- **Don't let a fix touch a test file.** The freeze from quench holds. If a finding says
-  a test is wrong, that's a spec conversation (Golden Rule), not a hone edit.
 - **Don't fix beyond the findings.** Refactor-while-you're-in-there at this stage is
   scope creep on green code; put it in the log as a NIT for a future feature.
-- **Don't treat a green suite as evidence a fix worked.** It was green before the fix and
-  it is green after; that is a statement about the tests, not the repair. Revert the fix
-  and watch the test fail, or you have not checked anything.
-- **Don't let the author of a fix be its only reviewer.** Same rule as the diff itself,
-  and for the same reason — a repair inherits every blind spot that produced the defect.
-- **Don't review a unit larger than ~400 changed lines.** Split by task/commit first.
-- **Don't accept conformance findings without the FR → file:line trace** (nor any
-  critic's finding without its procedure artifact). Evidence, not vibes.
 - **Don't merge on A or A+.** A++ is the gate, same as temper. Tempted to ship at A+
   means the convergence rule caught something; stop and escalate.
 - **Don't edit `code-review.md` retroactively.** Append-only, like `review.md`.
-- **Don't invoke `superpowers:requesting-code-review`.** It is DENY-listed; hone replaces it.
 
 ## Refusal Behavior
 
@@ -269,7 +253,6 @@ Hone's findings split cleanly under the Golden Rule: code that diverges from the
 - Reads the diff produced by `quench` (via `quench-log.md`'s per-task record)
 - Critics/judge dispatch via `damascus agent-run` or the session's subagent mechanism; pairs with `superpowers:dispatching-parallel-agents` (KEEP)
 - Applies findings with the posture of `superpowers:receiving-code-review` (KEEP)
-- Hands off to `superpowers:finishing-a-development-branch` (KEEP) for merge/PR
 
 ## References
 
