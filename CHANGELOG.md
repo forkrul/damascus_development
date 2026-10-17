@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Pack hone's review into units of consecutive tasks up to ~400 changed lines instead of one unit per task, and after round 1 re-review only units not yet done: a unit is done after two consecutive clean reviews, and a fix re-opens every unit whose files it touches. Each round still logs a feature `- Rating:` line (the lowest unit rating), which smithy reads; the worked example's `code-review.md` shows the units ([#35](https://github.com/forkrul/damascus_development/pull/35))
 - Drop "Don't do this" items and sentences that restate a rule already given in its own section of the same skill (forge, anvil, temper, quench, hone), and merge temper's and hone's Convergence Rule and Iteration Cap sections. No rule is removed; hone is back within the 260-line prompt budget, so `./install.sh eval` scores 100 ([#31](https://github.com/forkrul/damascus_development/pull/31))
 
 ### Added
