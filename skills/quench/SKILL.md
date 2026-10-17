@@ -136,7 +136,7 @@ A test that passed once has not passed. At green, run `damascus test-lock verify
 - gates: bdd-check ok · mypy ok · ruff ok · bandit ok · mutation 0 survivors (7 killed) · coverage 91% (reported)
 ```
 
-The log is the pipeline's flight recorder: it proves amber happened (the failure message), keeps diffs sized for review (`hone` reviews per task in ≤400-changed-line units — a task that lands bigger is logged as anvil feedback), and records every waiver, freeze exception, and sample-and-select decision.
+The log is the pipeline's flight recorder: it proves amber happened (the failure message), keeps diffs sized for review (`hone` packs tasks into ≤400-changed-line review units — a task that lands bigger on its own is logged as anvil feedback), and records every waiver, freeze exception, and sample-and-select decision.
 
 ## Agent Dispatch Table
 

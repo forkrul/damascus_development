@@ -70,11 +70,11 @@ damascus agent-run --role critic-a --prompt "<critic-a prompt>" --input-file spe
 
 ## Review Units and the Diff Budget
 
-Review the feature diff **task by task** (quench-log records each task's commits and
-diff size). **No review unit may exceed ~400 changed lines** — beyond that, reviewer
-defect-detection collapses (especially on local models with 8k–32k KV caches) and findings degrade into style notes. If a single task's
-diff exceeds the budget, split the review by commit; log the oversized task as feedback
-to `anvil` (the task was cut too big) in `code-review.md`.
+Pack the feature diff into **review units**: consecutive tasks in `quench-log.md` order (it records each task's commits and diff size), each unit **at most ~400 changed lines** — beyond that, reviewer defect-detection collapses (especially on local models with 8k–32k KV caches) and findings degrade into style notes. A single task over the budget is split by commit and logged in `code-review.md` as feedback to `anvil` (the task was cut too big). List the units at the top of `code-review.md`.
+
+The panel and judge run **per unit**, and the overlap signal is computed per unit. A unit is **done** after two consecutive clean reviews (the convergence rule below, per unit). Round 1 reviews every unit; later rounds review only units not yet done. A fix makes **every unit whose files it touches** not done, and its diff joins that unit (re-split if it then exceeds the budget).
+
+Each round logs one line per reviewed unit and a feature `- Rating:` line: the lowest unit rating, a done unit counting as A++. Smithy reads only that feature line.
 
 ## The Adversarial Round
 
@@ -197,8 +197,8 @@ Return:
 
 ## Convergence Rule and Cap
 
-**A++ requires two consecutive rounds with zero BLOCKING findings ($D_B = 0$).** A single clean round
-earns at most A+; the second confirms the first wasn't luck. A round capped by the overlap signal cannot count as clean.
+**A unit reaches A++ after two consecutive reviews with zero BLOCKING findings ($D_B = 0$); the feature, when every unit has.** One clean
+review earns at most A+; the second confirms the first wasn't luck. A review capped by the overlap signal cannot count as clean.
 
 **A round that carries an UNCONFIRMED forward is not clean.** The next round's targeted
 check must settle it: shown (BLOCKING) or not reproduced (killed, with the check's output
@@ -229,7 +229,7 @@ If the user asks to skip hone "just this once", remind them: green tests prove t
 ## Gate to Completion
 
 Hone is **complete** when:
-- [ ] `code-review.md` exists and its latest round is **A++** (two consecutive zero-blocking rounds)
+- [ ] `code-review.md` exists and its latest round is **A++** (every unit: two consecutive zero-blocking reviews)
 - [ ] Every applied fix is committed, verified by `damascus revert-proof` + `damascus proof-coverage`, and the full suite is green
 - [ ] If the host repo ships a board/state projection (e.g. a kanban sync script), run its sync once here. Skip silently if absent.
 

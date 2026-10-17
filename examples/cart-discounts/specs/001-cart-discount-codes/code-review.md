@@ -1,13 +1,14 @@
 # Adversarial Code Review Log — Cart discount codes
 
-Review units, from quench-log.md diff sizes: T001 (150) · T002 (96) · T003 (171) · T004 (142) · T005 (80) · T006 (127). All under the ~400-changed-line budget; no unit split. Suite green at 57/57 before round 1 (CI #412).
+Review units, packed in task order from quench-log.md diff sizes (≤400 changed lines each): **U1** = T001 + T002 (246) · **U2** = T003 + T004 + T005 (393) · **U3** = T006 (127). No task needed splitting. U2 and U3 both change `src/shop/discounts/router.py`. Suite green at 57/57 before round 1 (CI #412).
 
 ## Round 1 — 2026-03-11 10:40
-- Units reviewed: T001–T006, each with 3 critics + judge (18 critic reports, 6 judge verdicts)
+- Units reviewed: U1–U3, each with 3 critics + judge (9 critic reports, 3 judge verdicts)
 - Critics: conformance, security, simplicity (all attached artifacts: FR → file:line traces, input → sink walks, deletion lists)
 - Blocking: 1  Unconfirmed: 1 (carried)  Nits: 4 (3 killed by judge, 1 rejected)
-- Blocking Overlap (m_B / D_B): 0/1 (D_B < 4 — signal not computed, no cap)
-- Rating: C (a security finding; drifts from plan.md's ownership Safeguard)
+- Blocking Overlap (m_B / D_B): U2 0/1 (D_B < 4 — signal not computed, no cap); U1, U3 0/0
+- Units: U1 not clean (security UNCONFIRMED carried) · U2 C (security#1) · U3 clean, but fix `7c2e41d` below touches `router.py`, which U3 also changes, so U3 is reviewed again from pass 1
+- Rating: C (lowest unit: U2 — a security finding; drifts from plan.md's ownership Safeguard)
 - Findings applied:
   1. security#1 (BLOCKING) — `src/shop/discounts/router.py:71` registers `DELETE /cart/{cart_id}/discount` on the discounts `APIRouter` without the `require_cart_owner` dependency the `POST` route at `:38` carries; the security walk's `cart_id` path → sink trace ends at `cart_repo.get(cart_id)` with no ownership check, so any signed-in customer can clear another customer's discount by guessing an id. Shown to fail (the critic's repro, against the T004 commit): `DELETE /cart/{A's cart}/discount` with customer B's session → `204`, A's discount cleared. plan.md Safeguards require both routes under `require_cart_owner` with a `404` for a foreign session. No test could catch it: every FR-005 test used the owner's session, and tasks.md's T004 gate never asked for a foreign one. **Not a spec gap** — the plan states the rule — but a task-gate gap, so the fix goes through the Golden Rule rather than around the freeze:
      - tasks.md T004 gate clause added first ("both routes refuse a foreign customer's session with `404`")
@@ -23,18 +24,20 @@ Review units, from quench-log.md diff sizes: T001 (150) · T002 (96) · T003 (17
 - Security walk, remaining sinks clean: `code` body field → Pydantic `str` (max 64) → `.upper()` → parameterised query; refusal `detail` strings are constants, no reflection of input; no code value written to logs (verified against the T004 waiver).
 
 ## Round 2 — 2026-03-11 11:35
-- Units reviewed: T001–T006 **plus round 1's fix commit `7c2e41d` and the added test** — critics received the cumulative diff, not only the original implementation
+- Units reviewed: U1–U3 — U2 and U3 **now include round 1's fix commit `7c2e41d` and the added test**; their critics received the cumulative diff, not only the original implementation
 - Carried from round 1: security UNCONFIRMED (code enumeration by timing) — targeted check: `find_active` filters `active` in the same indexed `WHERE` clause, so unknown and inactive codes run one identical query; 1 000 timed requests each against the test app, medians 2.1 ms and 2.1 ms → not reproduced; killed
 - Critics: conformance, security, simplicity
 - Blocking: 0  Unconfirmed: 0  Nits: 1 (killed — docstring wording)
-- Blocking Overlap (m_B / D_B): 0/0 (N/A — D_B = 0)
-- Rating: A+ (clean pass 1 of 2)
+- Blocking Overlap (m_B / D_B): 0/0 in every unit (N/A — D_B = 0)
+- Units: U1 clean (carried check settled) · U2 clean · U3 clean — each pass 1 of 2
+- Rating: A+ (every unit at clean pass 1 of 2)
 - Round-1 fix review: conformance traced FR-005 → `router.py:38–74` and confirmed the dependency now sits on the router, not per route, so a future route cannot omit it; security re-ran the `cart_id` walk for both routes and re-ran `damascus revert-proof` independently (`[PASS:RED]`); simplicity proposed nothing further to delete and attached its empty deletion list with reasoning.
 
 ## Round 3 — 2026-03-11 12:10
-- Units reviewed: T001–T006 + `7c2e41d` (unchanged since round 2)
+- Units reviewed: U1–U3 (none done yet — each had one clean review); no fixes since round 2
 - Critics: conformance, security, simplicity
 - Blocking: 0  Unconfirmed: 0  Nits: 0
-- Blocking Overlap (m_B / D_B): 0/0 (N/A — D_B = 0)
-- Rating: A++  ← exit (clean pass 2 of 2, round cap reached exactly)
+- Blocking Overlap (m_B / D_B): 0/0 in every unit (N/A — D_B = 0)
+- Units: U1, U2, U3 clean — pass 2 of 2, all done
+- Rating: A++  ← exit (every unit done; round cap reached exactly)
 - Attack angles tried and failed: naive vs aware datetime comparison (`expires_at` is `timestamptz`, `now` built with `timezone.utc`); replaying a redeemed code on a guest cart (guests skip FR-004 by spec, no Redemption written); TOCTOU between `has_redeemed` and checkout (the unique constraint is the guard, the application check only an early exit — plan.md Safeguards); ownership bypass via the checkout hook (it receives the cart from the already-authorised checkout flow, never a raw id).
