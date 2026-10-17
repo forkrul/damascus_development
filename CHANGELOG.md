@@ -2,17 +2,14 @@
 
 ## [Unreleased]
 
-### Added
-
-- Add `--runs N` and `--critic-timeout` to `./install.sh eval --live-llm`: repeat the corpus and report recall per run, its mean and range, clean-control findings per run and how often each defect was found; and give slow backends more than the fixed 170 s per critic call ([#34](https://github.com/forkrul/damascus_development/pull/34))
-- Document the scorer-tuning rule in `evals/program.md`: diagnosis terms added after reading replies come from a backend other than the one being reported, and the reported run uses a frozen scorer ([#34](https://github.com/forkrul/damascus_development/pull/34))
-
 ### Changed
 
 - Drop "Don't do this" items and sentences that restate a rule already given in its own section of the same skill (forge, anvil, temper, quench, hone), and merge temper's and hone's Convergence Rule and Iteration Cap sections. No rule is removed; hone is back within the 260-line prompt budget, so `./install.sh eval` scores 100 ([#31](https://github.com/forkrul/damascus_development/pull/31))
 
 ### Added
 
+- Add `--runs N` and `--critic-timeout` to `./install.sh eval --live-llm`: repeat the corpus and report recall per run, its mean and range, clean-control findings per run and how often each defect was found; and give slow backends more than the fixed 170 s per critic call ([#34](https://github.com/forkrul/damascus_development/pull/34))
+- Document the scorer-tuning rule in `evals/program.md`: diagnosis terms added after reading replies come from a backend other than the one being reported, and the reported run uses a frozen scorer ([#34](https://github.com/forkrul/damascus_development/pull/34))
 - Add read-only review agents `temper-critic` (Read, Glob, Grep), `hone-critic` (plus Bash, for repros run in a throwaway worktree) and `review-judge`. Temper and hone now write each round's inputs to a bundle file and dispatch these agents on it, so critics can't edit the work under review and stay blind to earlier rounds and ratings. `tools:` is enforced only by harnesses that honour it; elsewhere the agents' no-edit rule still binds ([#33](https://github.com/forkrul/damascus_development/pull/33))
 
 ### Fixed
