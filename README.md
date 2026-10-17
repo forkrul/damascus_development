@@ -79,7 +79,7 @@ Smithy decides from what is on disk, and you can too:
 `install.sh` links, relative and idempotent:
 
 - the 6 stage skills and 6 aliases → `.claude/skills/` (and `.agents/skills/`)
-- 5 quench agents (`bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer`, `labcoat`) → `.claude/agents/` (and `.agents/agents/`)
+- 8 agents → `.claude/agents/` (and `.agents/agents/`): quench's `bdd-scenario-writer`, `tdd-test-generator`, `playwright-e2e-tester`, `fastapi-implementer` and `labcoat`, and the read-only reviewers `temper-critic`, `hone-critic` and `review-judge`
 - the KEEP-class [obra/superpowers](https://github.com/obra/superpowers) skills (see the policy below) → `.claude/skills/`
 
 `.agents/` and `.gemini/` are populated when they already exist, or always with `--all-harnesses`. Every link is relative, so a committed `.claude/` works on every clone. Re-running refreshes links and prunes damascus-owned links that are no longer shipped; the script never touches a file it doesn't own, and exits non-zero if a link can't be placed.
@@ -174,7 +174,7 @@ sphinx-build -W --keep-going -n -b html docs docs/_build/html
 ```
 skills/{forge,anvil,temper,quench,hone,smithy}/SKILL.md   the six skills (5 stages + orchestrator)
 skills/<alias> -> <stage>                                 invocation aliases
-agents/*.md                                               quench's dispatch agents (model: inherit, ≤150 lines)
+agents/*.md                                               dispatch agents: quench's five + temper/hone's read-only reviewers
 scripts/damascus-*                                        the damascus commands: model runner + mechanized gates
 evals/                                                    evaluation harness (./install.sh eval) + seeded-defect corpus
 examples/cart-discounts/                                  one feature's full artifact trail, gate by gate

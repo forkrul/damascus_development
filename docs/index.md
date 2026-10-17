@@ -36,7 +36,7 @@ _generated/skills/hone
 ```
 
 ```{toctree}
-:caption: Quench agents
+:caption: Agents
 :maxdepth: 1
 
 _generated/agents/bdd-scenario-writer
@@ -44,6 +44,9 @@ _generated/agents/tdd-test-generator
 _generated/agents/playwright-e2e-tester
 _generated/agents/fastapi-implementer
 _generated/agents/labcoat
+_generated/agents/temper-critic
+_generated/agents/hone-critic
+_generated/agents/review-judge
 ```
 
 ```{toctree}

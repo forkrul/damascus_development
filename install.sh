@@ -30,7 +30,8 @@ ALIASES=(
   code-review-loop:hone
   spdd-pipeline:smithy
 )
-AGENTS=(bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat)
+AGENTS=(bdd-scenario-writer tdd-test-generator playwright-e2e-tester fastapi-implementer labcoat
+        temper-critic hone-critic review-judge)
 # KEEP-class superpowers skills. DENY-class skills are intentionally NOT linked:
 # brainstorming/writing-plans/executing-plans/requesting-code-review overlap a stage
 # (forge/anvil/quench/hone replace them), and using-superpowers/subagent-driven-development

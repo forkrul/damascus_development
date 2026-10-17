@@ -51,7 +51,7 @@ for name in forge anvil temper quench hone smithy prd-authoring speckit-decompos
   [ -f ".claude/skills/$name/SKILL.md" ] || fail "skills/$name has no SKILL.md"
 done
 for agent in bdd-scenario-writer tdd-test-generator playwright-e2e-tester \
-             fastapi-implementer labcoat; do
+             fastapi-implementer labcoat temper-critic hone-critic review-judge; do
   [ -L ".claude/agents/$agent.md" ] || fail "agents/$agent.md not linked"
   [ -e ".claude/agents/$agent.md" ] || fail "agents/$agent.md is a broken link"
 done
