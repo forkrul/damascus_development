@@ -7,7 +7,7 @@
 ### Changed
 
 - Rewrite the README around a quick start: the real clone URL, how to start a feature with smithy, red-amber-green next to the gates it belongs to, a table of the `damascus` commands, and a `vX.Y.Z` upgrade example instead of a release that doesn't exist ([#28](https://github.com/forkrul/damascus_development/pull/28))
-- Mark `docs/production-readiness.md` as a record of the original plan with branch protection the one open item, and describe the docs as harness-agnostic rather than Claude Code-only ([#28](https://github.com/forkrul/damascus_development/pull/28))
+- Mark `docs/production-readiness.md` as a record of the original plan, with `master` protected by a repository ruleset, and describe the docs as harness-agnostic rather than Claude Code-only ([#28](https://github.com/forkrul/damascus_development/pull/28))
 
 ### Added
 
