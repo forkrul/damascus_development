@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Drop "Don't do this" items and sentences that restate a rule already given in its own section of the same skill (forge, anvil, temper, quench, hone), and merge temper's and hone's Convergence Rule and Iteration Cap sections. No rule is removed; hone is back within the 260-line prompt budget, so `./install.sh eval` scores 100 ([#31](https://github.com/forkrul/damascus_development/pull/31))
+
 ## [0.1.1] - 2026-10-17
 
 ### Changed
