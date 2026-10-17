@@ -43,11 +43,11 @@ If the host repository defines `.damascus/addenda/temper.md`, read it before dis
 
 ## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
 
-Critics and the judge may be dispatched either via the session's native subagent tool OR via `damascus agent-run` (which supports local open-weight models on Ollama, `llama.cpp` / `llama-server`, `vLLM`, `LM Studio` as well as cloud CLIs `claude`, `gemini`, `codex`, `opencode`, `llm`):
+Before each round, write the **round bundle** `specs/NNN-<slug>/critic-bundle.md`: the current triplet, plus (round $N > 1$) round $N-1$'s diff and any UNCONFIRMED check carried to a lens — nothing from `review.md`. Critics read only the bundle, so they stay blind to round and rating. Dispatch each critic as the read-only **`temper-critic`** agent (tools: Read, Glob, Grep) and the judge as **`review-judge`**, given an anonymized findings file; where a harness ignores agent `tools:` lines, the agents' no-edit rule still binds. Or route either via `damascus agent-run` to local open-weight models (Ollama, `llama.cpp` / `llama-server`, `vLLM`, `LM Studio`) or cloud CLIs (`claude`, `gemini`, `codex`, `opencode`, `llm`):
 
 ```bash
 damascus agent-run --probe
-damascus agent-run --role critic-a --prompt "<critic-a prompt>" --input-file specs/NNN-<slug>/bundle.md
+damascus agent-run --role critic-a --prompt "<critic-a prompt>" --input-file specs/NNN-<slug>/critic-bundle.md
 ```
 
 `damascus agent-run` automatically strips model and provider self-identification headers from critic outputs so the Judge evaluates findings **blind** to which model produced them. Never use the authoring/editing context as the Judge. Output containing a `> rule-auditor fallback` line (`agent-run --backend auto` found no model and substituted its deterministic checks, with a `[WARN]` on stderr) is not a critic review — re-dispatch to a model or a native subagent before counting the round, or pass `--no-fallback` to make that an error.
@@ -58,7 +58,7 @@ Each round has three phases:
 
 ### 1. Heat — critic panel (parallel)
 
-Dispatch **3 critic subagents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/temper.md`), each with a distinct lens (80% effort), a **20% shared core check** (FR↔task mapping & top-level contradiction sweep, ensuring statistical calibration for capture-recapture overlap), an **active procedure**, and an explicit mandate to **refute** the triplet, not affirm it:
+Dispatch **3 `temper-critic` agents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/temper.md`), each with a distinct lens (80% effort), a **20% shared core check** (FR↔task mapping & top-level contradiction sweep, ensuring statistical calibration for capture-recapture overlap), an **active procedure**, and an explicit mandate to **refute** the triplet, not affirm it:
 
 | Critic | Lens | Active procedure (mandatory, artifact attached) | Hunts for |
 |--------|------|------------------------------------------------|-----------|
@@ -75,7 +75,7 @@ Each critic receives the full triplet and returns findings classified as **BLOCK
 
 ### 2. Adjudicate — judge (single, blind)
 
-Dispatch **1 fresh judge subagent** (never the author/editor context) with anonymized critic findings. The judge:
+Dispatch **1 fresh `review-judge`** (never the author/editor context) with anonymized critic findings. The judge:
 
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
@@ -121,12 +121,7 @@ Return:
   <suspected issue> — <where you looked and what you couldn't check>
 - If you found nothing: the artifact plus the 3 attack angles you tried and why each failed.
 
---- spec.md ---
-<paste>
---- plan.md ---
-<paste>
---- tasks.md ---
-<paste>
+--- round bundle: specs/NNN-<slug>/critic-bundle.md (read it and nothing else) ---
 ```
 
 ## Review Log Format

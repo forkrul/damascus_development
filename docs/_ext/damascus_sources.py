@@ -33,7 +33,7 @@ SOURCES = {
        for s in ("smithy", "forge", "anvil", "temper", "quench", "hone")},
     **{f"agents/{a}.md": f"_generated/agents/{a}"
        for a in ("bdd-scenario-writer", "tdd-test-generator", "playwright-e2e-tester",
-                 "fastapi-implementer", "labcoat")},
+                 "fastapi-implementer", "labcoat", "temper-critic", "hone-critic", "review-judge")},
     "examples/README.md": "_generated/examples/index",
     "examples/cart-discounts/.prd/001_cart-discount-codes.md": "_generated/examples/prd",
     **{f"examples/cart-discounts/specs/001-cart-discount-codes/{f}.md": f"_generated/examples/{f}"

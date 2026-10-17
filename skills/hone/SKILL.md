@@ -59,7 +59,7 @@ If the host repository defines `.damascus/addenda/hone.md`, read it before dispa
 
 ## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
 
-Critics and the judge may be dispatched either via the session's native subagent tool OR via `damascus agent-run` (supporting local open-weight models on Ollama, `llama.cpp` / `llama-server`, `vLLM`, `LM Studio` as well as cloud CLIs `claude`, `gemini`, `codex`, `opencode`, `llm`):
+Before each round, write the unit's **round bundle** `specs/NNN-<slug>/diff-bundle.md` — the spec triplet, the unit's diff including the previous round's fix commits, and any carried UNCONFIRMED check; nothing from `code-review.md` or commit messages. Dispatch each critic as the read-only **`hone-critic`** agent (Read, Glob, Grep; Bash only for repros in a throwaway worktree) and the judge as **`review-judge`** on an anonymized findings file; where a harness ignores agent `tools:` lines, their no-edit rule still binds. Or route either via `damascus agent-run` to local models (Ollama, `llama.cpp`, `vLLM`, `LM Studio`) or cloud CLIs (`claude`, `gemini`, `codex`, `opencode`, `llm`):
 
 ```bash
 damascus agent-run --probe
@@ -80,7 +80,7 @@ to `anvil` (the task was cut too big) in `code-review.md`.
 
 ### 1. Heat — critic panel (parallel)
 
-Dispatch **3 critic subagents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/hone.md`), each with a distinct lens (80% effort), a **20% shared core correctness sweep** (calibrating cross-critic overlap on genuine blocking bugs), an **active procedure**, and an explicit mandate to **refute** the diff, not affirm it:
+Dispatch **3 `hone-critic` agents in parallel** (plus optional `critic-d` if defined in `.damascus/addenda/hone.md`), each with a distinct lens (80% effort), a **20% shared core correctness sweep** (calibrating cross-critic overlap on genuine blocking bugs), an **active procedure**, and an explicit mandate to **refute** the diff, not affirm it:
 
 | Critic | Lens | Active procedure (mandatory, artifact attached) |
 |--------|------|------------------------------------------------|
@@ -92,7 +92,7 @@ Dispatch **3 critic subagents in parallel** (plus optional `critic-d` if defined
 - **Round & Grade Blindness:** Never tell Critics A, B, or C the current round number or prior round's rating (`A` / `A+`).
 - **Fresh-Critic Rotation on `A+ → A++`:** On the confirmation round following an `A+`, rotate model assignment or inject a red-team falsification framing into one critic slot.
 
-Each critic receives the review unit's diff plus the spec triplet, and returns findings
+Each critic reads the round bundle (diff + spec triplet), and returns findings
 as **BLOCKING** (would be wrong to merge) or **NIT** (cosmetic), each with `file:line`.
 A BLOCKING finding must show how it fails — a failing test, a repro input, or a command
 and its output. A suspicion the critic couldn't show is **UNCONFIRMED**, with where it
@@ -100,7 +100,7 @@ looked and what it couldn't check.
 
 ### 2. Adjudicate — judge (single, blind)
 
-Dispatch **1 fresh judge subagent** (never the implementer/repair author context) with anonymized critic findings. The judge:
+Dispatch **1 fresh `review-judge`** (never the implementer/repair author context) with anonymized critic findings. The judge:
 
 - Dedupes overlapping findings
 - Kills non-substantive nits and critic theater (manufactured objections)
@@ -180,10 +180,7 @@ Return:
 - If you found nothing: your procedure artifact plus the 3 attack angles you
   tried and why each failed.
 
---- spec.md / plan.md / tasks.md ---
-<paste>
---- diff (review unit) ---
-<paste>
+--- round bundle: specs/NNN-<slug>/diff-bundle.md (read it and the source it touches) ---
 ```
 
 ## The Rating Ladder
