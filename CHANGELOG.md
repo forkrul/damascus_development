@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop `install.sh` looping forever when a link target and its directory share no root (e.g. two drives under Git Bash): `relpath` now fails, and the link is skipped with an error and counted as a problem ([#32](https://github.com/forkrul/damascus_development/pull/32))
+- Check install.sh's skill lists in CI with an in-process loop instead of `printf | grep -q`, which can die of SIGPIPE once `pipefail` is on ([#32](https://github.com/forkrul/damascus_development/pull/32))
+
 ### Changed
 
 - Drop "Don't do this" items and sentences that restate a rule already given in its own section of the same skill (forge, anvil, temper, quench, hone), and merge temper's and hone's Convergence Rule and Iteration Cap sections. No rule is removed; hone is back within the 260-line prompt budget, so `./install.sh eval` scores 100 ([#31](https://github.com/forkrul/damascus_development/pull/31))

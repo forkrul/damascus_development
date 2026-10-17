@@ -74,13 +74,16 @@ resolve() { # portable readlink -f: canonicalize a path, following symlinks
 relpath() { # relpath <target> <from-dir> — relative path between two absolute, physical paths.
   # Pure bash: `realpath --relative-to` is GNU-only, and an absolute fallback would leave
   # links that break as soon as the consumer repo is cloned somewhere else.
-  local target=${1%/} from=${2%/} up='' rest
+  # Returns 1 when the paths share no root (e.g. different drives under Git Bash).
+  local target=${1%/} from=${2%/} up='' rest prev
   [ "$target" = "$from" ] && { printf '.'; return 0; }
   while :; do
     case $target in
       "$from"/*) rest=${target#"$from"/}; break ;;
     esac
+    prev=$from
     from=${from%/*}
+    [ "$from" = "$prev" ] && return 1 # stopped shrinking: no common ancestor
     up="../$up"
   done
   printf '%s%s' "$up" "$rest"
@@ -126,9 +129,14 @@ is_expected_agent() { # true if $1 is a name damascus ships into .claude/agents/
 }
 
 link() { # link <target> <linkpath>
-  local target=$1 linkpath=$2
+  local target=$1 linkpath=$2 rel
   if [ ! -e "$target" ]; then
     err "skip $(basename "$linkpath") — target missing: $target (upstream renamed or removed it?)"
+    PROBLEMS=$((PROBLEMS + 1))
+    return 0
+  fi
+  if ! rel="$(relpath "$target" "$(physical_dir "$(dirname "$linkpath")")")"; then
+    err "skip $(basename "$linkpath") — no relative path from $(dirname "$linkpath") to $target (different drives?)"
     PROBLEMS=$((PROBLEMS + 1))
     return 0
   fi
@@ -141,7 +149,7 @@ link() { # link <target> <linkpath>
       return 0
     fi
   fi
-  run ln -s "$(relpath "$target" "$(physical_dir "$(dirname "$linkpath")")")" "$linkpath"
+  run ln -s "$rel" "$linkpath"
   say_done "linked $(basename "$linkpath")"
 }
 
