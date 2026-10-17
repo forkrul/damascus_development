@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-17
+
 ### Changed
 
 - Pack hone's review into units of consecutive tasks up to ~400 changed lines instead of one unit per task, and after round 1 re-review only units not yet done: a unit is done after two consecutive clean reviews, and a fix re-opens every unit whose files it touches. Each round still logs a feature `- Rating:` line (the lowest unit rating), which smithy reads; the worked example's `code-review.md` shows the units ([#35](https://github.com/forkrul/damascus_development/pull/35))
@@ -80,6 +82,7 @@ _Initial release._
 - Document the single-founder production-readiness plan ([#3](https://github.com/forkrul/damascus_development/pull/3))
 - License the project under MIT; vendored submodules keep their upstream licenses ([#3](https://github.com/forkrul/damascus_development/pull/3))
 
-[Unreleased]: https://github.com/forkrul/damascus_development/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/forkrul/damascus_development/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.2
 [0.1.1]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.1
 [0.1.0]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.0
