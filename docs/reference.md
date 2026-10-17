@@ -214,6 +214,7 @@ skill pages say exactly where each one is read.
 ./install.sh eval                                   # J_damascus, 0–100; exits 1 below 95
 ./install.sh eval --json --record                   # JSON report; append a row to evals/results.tsv
 ./install.sh eval --live-llm --backend <backend>    # also benchmark a real critic model
+./install.sh eval --live-llm --backend <backend> --runs 3 --critic-timeout 300   # repeat; report the spread
 ./install.sh eval --check-corpus                    # self-check the live benchmark's scorer and corpus
 ```
 
@@ -231,7 +232,11 @@ says what is wrong in words that don't occur in the prompt, so a model that echo
 input scores 0. The report gives recall, blocking findings on the clean control (false
 positives), the echo baseline, and any case where the backend failed. Every prompt and
 raw reply is saved under `.damascus/eval-runs/<time>-<backend>/` (`--out-dir` to
-override) so a score can be checked by hand. Treat one run as a rough reading: replies
-vary from run to run, and the scorer's term lists are still being tuned. A
+override) so a score can be checked by hand. Replies vary from run to run, so
+`--runs N` repeats the corpus and reports recall per run, its mean and range, and how
+often each defect was found; `--critic-timeout` (default 170 s) bounds each critic call,
+and a call that runs out is reported as an errored case, not a clean one. The scorer's
+term lists are still being tuned; a term added after reading replies must come from a
+backend other than the one being reported. A
 `--backend rule-auditor` run scores the regex checker, whose patterns were written
 against this corpus, so its result says nothing about models.

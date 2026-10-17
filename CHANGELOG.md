@@ -8,6 +8,8 @@
 
 ### Added
 
+- Add `--runs N` and `--critic-timeout` to `./install.sh eval --live-llm`: repeat the corpus and report recall per run, its mean and range, clean-control findings per run and how often each defect was found; and give slow backends more than the fixed 170 s per critic call ([#34](https://github.com/forkrul/damascus_development/pull/34))
+- Document the scorer-tuning rule in `evals/program.md`: diagnosis terms added after reading replies come from a backend other than the one being reported, and the reported run uses a frozen scorer ([#34](https://github.com/forkrul/damascus_development/pull/34))
 - Add read-only review agents `temper-critic` (Read, Glob, Grep), `hone-critic` (plus Bash, for repros run in a throwaway worktree) and `review-judge`. Temper and hone now write each round's inputs to a bundle file and dispatch these agents on it, so critics can't edit the work under review and stay blind to earlier rounds and ratings. `tools:` is enforced only by harnesses that honour it; elsewhere the agents' no-edit rule still binds ([#33](https://github.com/forkrul/damascus_development/pull/33))
 
 ### Fixed
