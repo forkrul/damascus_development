@@ -51,16 +51,18 @@ jobs:
           for s in "${SUPERPOWERS_KEEP[@]}"; do
             [ -f "vendor/superpowers/skills/$s/SKILL.md" ] || { echo "::error::KEEP skill $s missing upstream — update SUPERPOWERS_KEEP"; exit 1; }
           done
+          # membership tests run in-process: `printf | grep -q` can die of SIGPIPE under pipefail
+          in_list() { local want=$1 x; shift; for x in "$@"; do [ "$x" = "$want" ] && return 0; done; return 1; }
           # every stage dir on disk is either a stage or an alias (no orphan skills)
           for d in skills/*; do
             name="$(basename "$d")"
-            printf '%s\n' "${STAGE_SKILLS[@]}" "${ALIASES[@]%%:*}" | grep -Fxq "$name" \
+            in_list "$name" "${STAGE_SKILLS[@]}" "${ALIASES[@]%%:*}" \
               || { echo "::error::$d is not listed in install.sh"; exit 1; }
           done
           # every upstream skill has a policy: KEEP (linked) or DENY (named in README)
           for d in vendor/superpowers/skills/*; do
             name="$(basename "$d")"
-            printf '%s\n' "${SUPERPOWERS_KEEP[@]}" | grep -Fxq "$name" && continue
+            in_list "$name" "${SUPERPOWERS_KEEP[@]}" && continue
             grep -Eq "^\| \`$name\` \| DENY \|" README.md \
               || { echo "::error::upstream skill '$name' is neither KEEP in install.sh nor DENY in README.md — classify it"; exit 1; }
           done
