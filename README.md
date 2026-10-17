@@ -14,10 +14,10 @@ From your repo root, pinning a release tag (see [Releases](https://github.com/fo
 
 ```bash
 git submodule add https://github.com/forkrul/damascus_development.git vendor/damascus
-git -C vendor/damascus checkout v0.1.0                          # pin a release, never a moving branch
+git -C vendor/damascus checkout v0.1.1                          # pin a release, never a moving branch
 git -C vendor/damascus submodule update --init --recursive      # damascus's own pinned submodules
 ./vendor/damascus/install.sh
-git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.0"
+git add .gitmodules vendor/damascus && git commit -m "chore: vendor damascus v0.1.1"
 ```
 
 Then, in an agent session in that repo, start a feature with the orchestrator — in Claude Code, `/smithy` (or its alias `/spdd-pipeline`), or just say "let's build *feature X*" and ask for the smithy skill. Smithy runs the next stage, halts at every gate for your signoff, and picks up where it left off on `smithy --resume`. To see what a finished run looks like before starting one, read [`examples/`](examples/): one feature's complete artifact trail through all five gates.
