@@ -59,7 +59,7 @@ If the host repository defines `.damascus/addenda/hone.md`, read it before dispa
 
 ## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
 
-Before each round, write the unit's **round bundle** `specs/NNN-<slug>/diff-bundle.md` — the spec triplet, the unit's diff including the previous round's fix commits, and any carried UNCONFIRMED check; nothing from `code-review.md` or commit messages. Dispatch each critic as the read-only **`hone-critic`** agent (Read, Glob, Grep; Bash only for repros in a throwaway worktree) and the judge as **`review-judge`** on an anonymized findings file; where a harness ignores agent `tools:` lines, their no-edit rule still binds. Or route either via `damascus agent-run` to local models (Ollama, `llama.cpp`, `vLLM`, `LM Studio`) or cloud CLIs (`claude`, `gemini`, `codex`, `opencode`, `llm`):
+Before each round, write the unit's **round bundle** `specs/NNN-<slug>/diff-bundle.md` — the spec triplet, the unit's diff including the previous round's fix commits, and any carried UNCONFIRMED check; nothing from `code-review.md` or commit messages, and no triplet line that names a hone round (an amendment note's trigger). When the previous round fixed nothing in the unit, say nothing about fix commits: "no fixes" tells a critic the last review was clean. Dispatch each critic as the read-only **`hone-critic`** agent (Read, Glob, Grep; Bash only for repros in a throwaway worktree) and the judge as **`review-judge`** on an anonymized findings file; where a harness ignores agent `tools:` lines, their no-edit rule still binds. Or route either via `damascus agent-run` to local models (Ollama, `llama.cpp`, `vLLM`, `LM Studio`) or cloud CLIs (`claude`, `gemini`, `codex`, `opencode`, `llm`):
 
 ```bash
 damascus agent-run --probe
@@ -90,7 +90,7 @@ Dispatch **3 `hone-critic` agents in parallel** (plus optional `critic-d` if def
 
 **Anti-Sycophancy & Local-Model Context Hygiene:**
 - **Round & Grade Blindness:** Never tell Critics A, B, or C the current round number or prior round's rating (`A` / `A+`).
-- **Fresh-Critic Rotation on `A+ → A++`:** On the confirmation round following an `A+`, rotate model assignment or inject a red-team falsification framing into one critic slot.
+- **Fresh-Critic Rotation on `A+ → A++`:** On the confirmation round following an `A+`, rotate model assignment or inject a red-team falsification framing into one critic slot. The framing names no earlier review: "assume the diff hides a defect", never "a previous reviewer was too lenient".
 
 Each critic reads the round bundle (diff + spec triplet), and returns findings
 as **BLOCKING** (would be wrong to merge) or **NIT** (cosmetic), each with `file:line`.
