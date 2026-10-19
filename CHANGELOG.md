@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep temper's and hone's round bundles blind after a round that changed nothing: leave the diff out (hone: say nothing about fix commits) instead of writing "no edits", which tells a critic the last round was clean and this round is the confirmation pass; leave out triplet lines that name a round or rating; and word the red-team framing without reference to an earlier review ([#37](https://github.com/forkrul/damascus_development/pull/37))
+
 ## [0.1.2] - 2026-10-17
 
 ### Changed
