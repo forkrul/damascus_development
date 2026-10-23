@@ -4,7 +4,7 @@
 
 ### Added
 
-- Add an experience ledger, `.damascus/experience.md`: smithy's finish step records at most one lesson per feature with its stage, cue, evidence from the trail and confidence, and refuses one without them; each stage applies the entries tagged for it whose cue matches, and temper and hone pass the lesson to critics without its evidence. The worked example records its hone ownership finding as an anvil lesson, and the `FINISH:` line names the entry ([`4557aea`](https://github.com/forkrul/damascus_development/commit/4557aea))
+- Add an experience ledger, `.damascus/experience.md`: smithy's finish step records at most one lesson per feature with its stage, cue, evidence from the trail and confidence, and refuses one without them; each stage applies the entries tagged for it whose cue matches, and temper and hone pass the lesson to critics without its evidence. The worked example records its hone ownership finding as an anvil lesson, and the `FINISH:` line names the entry ([#38](https://github.com/forkrul/damascus_development/pull/38))
 
 ### Fixed
 
