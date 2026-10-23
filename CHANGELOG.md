@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add an experience ledger, `.damascus/experience.md`: smithy's finish step records at most one lesson per feature with its stage, cue, evidence from the trail and confidence, and refuses one without them; each stage applies the entries tagged for it whose cue matches, and temper and hone pass the lesson to critics without its evidence. The worked example records its hone ownership finding as an anvil lesson, and the `FINISH:` line names the entry ([#38](https://github.com/forkrul/damascus_development/pull/38))
+
 ### Fixed
 
 - Keep temper's and hone's round bundles blind after a round that changed nothing: leave the diff out (hone: say nothing about fix commits) instead of writing "no edits", which tells a critic the last round was clean and this round is the confirmation pass; leave out triplet lines that name a round or rating; and word the red-team framing without reference to an earlier review ([#37](https://github.com/forkrul/damascus_development/pull/37))

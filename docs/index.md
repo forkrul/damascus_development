@@ -62,6 +62,7 @@ _generated/examples/review
 _generated/examples/quench-log
 _generated/examples/code-review
 _generated/examples/smithy-log
+_generated/examples/experience
 ```
 
 ```{toctree}

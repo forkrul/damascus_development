@@ -36,6 +36,7 @@ SOURCES = {
                  "fastapi-implementer", "labcoat", "temper-critic", "hone-critic", "review-judge")},
     "examples/README.md": "_generated/examples/index",
     "examples/cart-discounts/.prd/001_cart-discount-codes.md": "_generated/examples/prd",
+    "examples/cart-discounts/.damascus/experience.md": "_generated/examples/experience",
     **{f"examples/cart-discounts/specs/001-cart-discount-codes/{f}.md": f"_generated/examples/{f}"
        for f in ("spec", "plan", "tasks", "review", "quench-log", "code-review", "smithy-log")},
 }

@@ -42,7 +42,7 @@ Anvil **MUST refuse to start** if any of the following fail:
 4. No `[ASSUMED]` markers remain unconfirmed
 
 If any check fails: print the failure, point at `forge`, and stop.
-If the host repository defines `.damascus/addenda/anvil.md`, read it before drafting and apply its domain-specific decomposition constraints.
+If the host repository defines `.damascus/addenda/anvil.md`, read it before drafting and apply its domain-specific decomposition constraints. Separately, if `.damascus/experience.md` exists, read its entries whose Stage is `anvil`, and apply the Lesson of each one whose Cue matches this PRD.
 
 ## Output Contract
 
