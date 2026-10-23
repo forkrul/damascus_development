@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-23
+
 ### Added
 
 - Add an experience ledger, `.damascus/experience.md`: smithy's finish step records at most one lesson per feature with its stage, cue, evidence from the trail and confidence, and refuses one without them; each stage applies the entries tagged for it whose cue matches, and temper and hone pass the lesson to critics without its evidence. The worked example records its hone ownership finding as an anvil lesson, and the `FINISH:` line names the entry ([#38](https://github.com/forkrul/damascus_development/pull/38))
@@ -90,7 +92,8 @@ _Initial release._
 - Document the single-founder production-readiness plan ([#3](https://github.com/forkrul/damascus_development/pull/3))
 - License the project under MIT; vendored submodules keep their upstream licenses ([#3](https://github.com/forkrul/damascus_development/pull/3))
 
-[Unreleased]: https://github.com/forkrul/damascus_development/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/forkrul/damascus_development/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.3
 [0.1.2]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.2
 [0.1.1]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.1
 [0.1.0]: https://github.com/forkrul/damascus_development/releases/tag/v0.1.0
