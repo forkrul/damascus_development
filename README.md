@@ -132,6 +132,7 @@ Each takes `--help`. Flags, model routing (`.damascus/models.conf` and `DAMASCUS
 Each is used when present and skipped silently when not:
 
 - **Stage addenda** (`.damascus/addenda/<stage>.md`) — add domain norms, gates or a fourth critic lens (`critic-d`) to a stage without forking it
+- **Experience** (`.damascus/experience.md`) — smithy's finish step records at most one evidence-backed lesson per feature, and each stage applies the entries tagged for it whose cue matches the next feature
 - **Model routing** (`.damascus/models.conf`) — send critics, judge or implementer to particular local models or agent CLIs via `damascus agent-run`
 - **Board projection** — if your repo has a kanban/state sync script, each stage gate runs it once
 - **Phase signalling** — if your repo has a status-bar helper (e.g. tmux), quench calls it at red/amber/green transitions

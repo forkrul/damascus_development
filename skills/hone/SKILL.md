@@ -55,7 +55,7 @@ Refuse if:
 3. The test suite is not currently green
 4. The diff is uncommitted — hone reviews commits, not a dirty tree
 
-If the host repository defines `.damascus/addenda/hone.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`).
+If the host repository defines `.damascus/addenda/hone.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`). Separately, if `.damascus/experience.md` exists, read its entries whose Stage is `hone`, and add the Lesson of each one whose Cue matches this diff to the critics' checks, without its Evidence.
 
 ## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
 

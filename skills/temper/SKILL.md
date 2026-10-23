@@ -39,7 +39,7 @@ Refuse if:
 3. `specs/NNN-<slug>/tasks.md` does not exist
 4. Any of the three is empty or contains only template scaffolding
 
-If the host repository defines `.damascus/addenda/temper.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`).
+If the host repository defines `.damascus/addenda/temper.md`, read it before dispatching critics and attach any domain-specific checks or optional 4th critic lens (`critic-d`). Separately, if `.damascus/experience.md` exists, read its entries whose Stage is `temper`, and add the Lesson of each one whose Cue matches this triplet to the critics' checks, without its Evidence.
 
 ## Model-Agnostic Critic & Judge Dispatch (Local + Cloud)
 

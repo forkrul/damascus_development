@@ -11,5 +11,5 @@ Host-repo integrations detected: board projection — none · phase signalling �
 2026-03-11 08:15  RESUME: detected stage=quench (tasks.md has 2 unchecked items)
 2026-03-11 10:22  GATE: quench complete — quench-log.md (6 tasks green, 57 tests, 0 UNTESTED FRs, CI #412) — user: y (run hone)
 2026-03-11 12:30  GATE: hone complete — code-review.md A++ in 3 rounds (1 blocking finding fixed via tasks.md → test → code) — user: y (run finish step)
-2026-03-11 12:45  FINISH: docs updated · atlas skipped (atlas skill not available)
+2026-03-11 12:45  FINISH: docs updated · atlas skipped (atlas skill not available) · experience Gate every owner-only route with a foreign-session test
 2026-03-11 12:45  HANDOFF: superpowers:finishing-a-development-branch — PR "feat(cart): discount codes (001)"

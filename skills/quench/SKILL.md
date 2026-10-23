@@ -45,7 +45,7 @@ Refuse if:
 2. `specs/NNN-<slug>/review.md` does not exist OR its latest round rating is not **A++**
 3. The user has not committed (or at least staged) the tempered spec
 
-If the host repository defines `.damascus/addenda/quench.md`, read it before execution and enforce its domain-specific test/build gates.
+If the host repository defines `.damascus/addenda/quench.md`, read it before execution and enforce its domain-specific test/build gates. Separately, if `.damascus/experience.md` exists, read its entries whose Stage is `quench`, and apply the Lesson of each one whose Cue matches these tasks.
 
 ## The Red-Amber-Green Cycle
 

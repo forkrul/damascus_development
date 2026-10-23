@@ -18,7 +18,7 @@ flowchart TD
     anvil -- gate --> temper["<b>temper</b><br/>review.md, rated A++"]
     temper -- gate --> quench["<b>quench</b><br/>tests + code · quench-log.md"]
     quench -- gate --> hone["<b>hone</b><br/>code-review.md, rated A++"]
-    hone -- gate --> finish["<b>finish step</b><br/>README · CHANGELOG · Atlas if installed"]
+    hone -- gate --> finish["<b>finish step</b><br/>README · CHANGELOG · Atlas if installed · experience"]
     finish --> merge([merge handoff])
     smithy{{"<b>smithy</b><br/>reads disk, runs the next stage,<br/>halts at every gate"}} -.- forge & anvil & temper & quench & hone
 ```

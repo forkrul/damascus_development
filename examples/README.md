@@ -19,6 +19,7 @@ cart-discounts/
     quench-log.md                              quench  — red/amber/green per task, gates, one waiver, one sample-and-select
     code-review.md                             hone    — 3 rounds: C → A+ → A++, one blocking finding fixed and shown to fail without its fix
     smithy-log.md                              smithy  — START/GATE/RESUME/HALT entries and the FINISH line
+  .damascus/experience.md                      smithy  — the one lesson the finish step recorded, for anvil
 ```
 
 The layout mirrors a consumer repo's root: `.prd/` and `specs/` sit where `install.sh` and the stage skills expect them.
@@ -34,7 +35,7 @@ Read the files in pipeline order. Each one is the *proof* that a gate was passed
 | temper complete | `specs/001-…/review.md` | the last round's `- Rating:` line is `A++` (two consecutive zero-blocking rounds) |
 | quench complete | `specs/001-…/tasks.md` + `quench-log.md` | no `- [ ]` left in tasks.md **and** a `green:` line with gate results for every task ID |
 | hone complete | `specs/001-…/code-review.md` | the last round's `- Rating:` line is `A++` |
-| finish done | `specs/001-…/smithy-log.md` | a `FINISH: docs updated · atlas …` line — the only trace the finish step is guaranteed to leave |
+| finish done | `specs/001-…/smithy-log.md` | a `FINISH: docs updated · atlas … · experience …` line — the only trace the finish step is guaranteed to leave |
 
 Things worth noticing as you read:
 
@@ -48,6 +49,7 @@ Things worth noticing as you read:
 - **Hone's one blocking finding went the long way round.** The missing ownership check on `DELETE` had no test, so the fix could not simply be written: `tasks.md`'s T004 gate was amended first, the test agent added the test (the freeze exception is in `quench-log.md`), the implementer fixed the router, and the log shows the revert-check — fix out, test red; fix in, test green. Round 2 reviewed that fix as part of its diff; round 3 confirmed.
 - **A suspicion is not a finding.** Hone round 1's security critic suspected that response timing could reveal which codes exist, but couldn't time requests in its harness. It logged the issue as UNCONFIRMED, round 2 ran the targeted check and killed it with the measurement, and only the ownership finding, which came with a repro, was treated as blocking.
 - **Ratings measure what the panel examined.** Hone round 1 was C on one finding; a round is "clean" only if the previous round's fixes were in the diff its critics saw, which is why A++ took three rounds, not two.
+- **The finish step recorded one lesson, for anvil.** Hone's ownership finding traced back to a task gate anvil wrote without a foreign-session check, though plan.md stated the rule. `.damascus/experience.md` keeps it with a cue, so the next feature whose plan has an owner-only Safeguard gets that gate clause at anvil, not at hone.
 - **Smithy never needed CI.** Every RESUME entry was decided from the files above; the session that halted mid-quench resumed from `tasks.md`'s two unchecked items.
 
 ## Which stage do I start at?

@@ -206,6 +206,32 @@ present, before it starts:
 Addenda are plain Markdown instructions that the stage applies alongside its own; the
 skill pages say exactly where each one is read.
 
+## Experience: `.damascus/experience.md`
+
+Addenda hold rules that apply to every feature. Experience holds lessons that apply only when a
+feature looks like an earlier one. Smithy's finish step writes it: after a feature completes, it
+reads the feature's trail and appends at most one entry, usually none. Each stage reads the
+entries whose `Stage` names it, next to its addendum, and applies those whose `Cue` matches the
+work in front of it.
+
+```markdown
+## NNN-<slug> — <short title>
+- Stage: anvil
+- Cue: <the feature shape or symptom that makes it apply>
+- Lesson: <what that stage does differently when the cue matches>
+- Evidence: <artifact path and the round, task or entry that shows it>
+- Confidence: <high | medium | low>
+```
+
+An entry without a cue, a lesson, and evidence in its feature's trail is refused. Cue and lesson
+carry no ratings, because temper and hone pass them to critics who must stay blind to earlier
+rounds; evidence stays out of the critics' bundle. A lesson that holds for every feature is
+proposed as an addendum line instead. The file is the host repo's own: commit it, and edit, merge
+or delete entries by hand when they stop paying for their context. The contract follows the experience
+records of [Harness²](https://github.com/google-research/harness2), which refuses a lesson
+without a cue and evidence. [The worked example](https://github.com/forkrul/damascus_development/blob/master/examples/cart-discounts/.damascus/experience.md)
+records one.
+
 ## Evaluation harness: `eval`
 
 `damascus eval` scores damascus itself; it is for working on this repo, not on a consumer.

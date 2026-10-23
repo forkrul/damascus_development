@@ -36,7 +36,7 @@ The upstream `superpowers:brainstorming` skill is **DENY** under this pipeline.
 ## Entry Preconditions
 
 None. This is the entry stage. The user gives you a raw idea; that's enough.
-If the host repository defines `.damascus/addenda/forge.md`, read it before starting elicitation and fold its domain-specific REASONS questions into the template below.
+If the host repository defines `.damascus/addenda/forge.md`, read it before starting elicitation and fold its domain-specific REASONS questions into the template below. Separately, if `.damascus/experience.md` exists, read its entries whose Stage is `forge`, and apply the Lesson of each one whose Cue matches this idea.
 
 ## Output Contract
 

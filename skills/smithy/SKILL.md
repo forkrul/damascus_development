@@ -76,7 +76,7 @@ Each halt prints the handoff message below: what needs the user first, then the 
 | `--start-from <stage>` | Begin at this stage, assume earlier ones done (or N/A) | "OVERRIDE: started from <stage>" |
 | `--resume` | Read disk state and continue from current stage | "RESUME: detected stage=<x>" |
 | `--dry-run` | Print plan; make no changes | (no log entry) |
-| (finish step) | Docs updated, Atlas run or skipped | "FINISH: docs updated · atlas <survey path \| skipped (atlas skill not available)>" |
+| (finish step) | Docs updated, Atlas run or skipped, experience recorded or not | "FINISH: docs updated · atlas <survey path \| skipped (atlas skill not available)> · experience <entry title \| none>" |
 
 `smithy-log.md` lives at `specs/NNN-<slug>/smithy-log.md` and is append-only.
 
@@ -121,7 +121,28 @@ handing off to `superpowers:finishing-a-development-branch`, smithy runs one fin
    sync. Atlas is not vendored by Damascus; this step is a no-op wherever the consumer
    has not installed it.
 
-3. **Log it.** Append `FINISH: docs updated · atlas <survey path | skipped (atlas skill not available)>`
+3. **Record experience, if the run earned it.** Read this feature's trail (`review.md`,
+   `quench-log.md`, `code-review.md`, `smithy-log.md`) and ask: did a later stage catch
+   something an earlier one should have, or did a stage spend rounds for a reason that will
+   recur? Usually not, and then nothing is recorded. Otherwise append **one** entry to the
+   host repo's `.damascus/experience.md` (create it, headed `# Experience`, on the first entry):
+
+   ```markdown
+   ## NNN-<slug> — <short title>
+   - Stage: <the stage that acts on it: forge | anvil | temper | quench | hone>
+   - Cue: <the feature shape or symptom that makes it apply>
+   - Lesson: <what that stage does differently when the cue matches>
+   - Evidence: <artifact path and the round, task or entry that shows it>
+   - Confidence: <high | medium | low>
+   ```
+
+   Write no entry without a Cue, a Lesson, and Evidence that points into this feature's
+   trail, and none that restates the diff. Keep ratings and round outcomes out of Cue and
+   Lesson: temper and hone hand those lines to critics, who must stay blind to earlier
+   ratings. A lesson that applies to every feature has no cue; propose it to the user as a
+   line for `.damascus/addenda/<stage>.md` instead.
+
+4. **Log it.** Append `FINISH: docs updated · atlas <survey path | skipped (atlas skill not available)> · experience <entry title | none>`
    to `smithy-log.md`. This line is how a later `smithy --resume` knows the finish step ran.
 
 This step runs **after** the hone gate signoff and is the last thing smithy does before
@@ -155,6 +176,7 @@ After full pipeline completion:
   - Implementation commits: <count>
   - Docs: README.md + CHANGELOG.md updated for NNN
   - Atlas: <survey path> | skipped (atlas skill not available)
+  - Experience: .damascus/experience.md — <entry title> | none recorded
   Next: superpowers:finishing-a-development-branch
 ```
 
